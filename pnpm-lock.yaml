@@ -16,7 +16,7 @@ importers:
         version: 20.3.0
       '@evilmartians/lefthook':
         specifier: ^2.0.0
-        version: 2.0.13
+        version: 2.0.15
       oxfmt:
         specifier: ^0.23.0
         version: 0.23.0
@@ -104,8 +104,8 @@ packages:
     resolution: {integrity: sha512-KTy0OqRDLR5y/zZMnizyx09z/rPlPC/zKhYgH8o/q6PuAjoQAKlRfY4zzv0M64yybQ//6//4H1n14pxaLZfUnA==}
     engines: {node: '>=v18'}
 
-  '@evilmartians/lefthook@2.0.13':
-    resolution: {integrity: sha512-Kpsd8NNQw4PrxP41OqwvM0oAP8y70Fslir7uU9fUBdl6JcGGpKlFNlFj87/5OJO95VHxKm8rFvg5mbkv4cCTFw==}
+  '@evilmartians/lefthook@2.0.15':
+    resolution: {integrity: sha512-ZyIFqvpLSDB+j2C9nUkgO4jYH8qZWH3E8YodXGb73a49X5RyezKpxhYqpsDt4k7OvVyGBFcRLo7N7oTE+9SrSA==}
     cpu: [x64, arm64, ia32]
     os: [darwin, linux, win32]
     hasBin: true
@@ -587,7 +587,7 @@ snapshots:
       '@types/conventional-commits-parser': 5.0.2
       chalk: 5.6.2
 
-  '@evilmartians/lefthook@2.0.13': {}
+  '@evilmartians/lefthook@2.0.15': {}
 
   '@oxfmt/darwin-arm64@0.23.0':
     optional: true
