@@ -16,7 +16,7 @@ importers:
         version: 20.5.3
       '@evilmartians/lefthook':
         specifier: ^2.0.0
-        version: 2.1.6
+        version: 2.1.8
       oxfmt:
         specifier: ^0.48.0
         version: 0.48.0
@@ -116,8 +116,8 @@ packages:
       conventional-commits-parser:
         optional: true
 
-  '@evilmartians/lefthook@2.1.6':
-    resolution: {integrity: sha512-ysZbzryf74wlISmgm0PH/n1lJ0HD7AHmI6DoJgWO9qzIETQknhGdmKbkOi0MjLYtiOHWQl8Dr2qwg0ksDpNZjA==}
+  '@evilmartians/lefthook@2.1.8':
+    resolution: {integrity: sha512-1hzdKBlPhy7SQWQOEMzt15VZ4xKNZGdOECbEhbAQc9B83vtn9Kx6ez5ciq/83RDyMSd1poAeXD0MibEowVenJw==}
     cpu: [x64, arm64, ia32]
     os: [darwin, linux, win32]
     hasBin: true
@@ -615,7 +615,7 @@ snapshots:
     optionalDependencies:
       conventional-commits-parser: 6.4.0
 
-  '@evilmartians/lefthook@2.1.6': {}
+  '@evilmartians/lefthook@2.1.8': {}
 
   '@oxfmt/binding-android-arm-eabi@0.48.0':
     optional: true
