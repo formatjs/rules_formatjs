@@ -1,0 +1,6 @@
+{
+  "python.greeting": {
+    "defaultMessage": "Hello, {name}!",
+    "description": "Greeting from Python"
+  }
+}
