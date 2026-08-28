@@ -4,7 +4,7 @@ Bazel rules for [FormatJS](https://formatjs.io/) - Internationalize your web app
 
 ## Features
 
-- Extract messages from source files (TypeScript, JavaScript, JSX, TSX, Rust)
+- Extract messages from source files (TypeScript, JavaScript, JSX, TSX, Rust, Python)
 - Compile messages for optimized runtime performance
 - Verify translations for completeness
 - Aggregate messages across multiple modules
@@ -58,9 +58,22 @@ load("@rules_formatjs//formatjs:defs.bzl", "formatjs_extract")
 
 formatjs_extract(
     name = "messages_extracted",
-    srcs = glob(["src/**/*.tsx", "src/**/*.ts"]),
+    srcs = glob(["src/**/*.tsx", "src/**/*.ts", "src/**/*.py"]),
     out = "en.json",
     id_interpolation_pattern = "[sha512:contenthash:base64:6]",
+)
+```
+
+Python extraction recognizes `define_message(...)` calls with literal `id`,
+`default_message`, and optional `description` keyword arguments:
+
+```python
+from example.i18n import define_message
+
+GREETING = define_message(
+    id="python.greeting",
+    default_message="Hello, {name}!",
+    description="Greeting shown on the account page",
 )
 ```
 

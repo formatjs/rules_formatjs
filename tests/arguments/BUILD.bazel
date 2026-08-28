@@ -60,6 +60,12 @@ formatjs_extract(
     srcs = ["test.rs"],
 )
 
+# Test extraction from Python define_message declarations
+formatjs_extract(
+    name = "messages_python",
+    srcs = ["test.py"],
+)
+
 # Note: Testing with invalid file extensions is not possible because Bazel's
 # allow_files restriction on srcs prevents unsupported files at analysis time.
 # This is actually good - it provides early validation before the CLI runs.
@@ -99,6 +105,7 @@ write_source_files(
         "fixtures/messages_default.json": ":messages_default",
         "fixtures/messages_merge.json": ":messages_merge",
         "fixtures/messages_crowdin.json": ":messages_crowdin",
+        "fixtures/messages_python.json": ":messages_python",
         "fixtures/messages_rust.json": ":messages_rust",
         "fixtures/compiled_ast.json": ":compiled_ast",
         "fixtures/compiled_multiple.json": ":compiled_multiple",
@@ -113,6 +120,7 @@ write_source_files(
         "fixtures/messages_default.json": ":messages_default",
         "fixtures/messages_merge.json": ":messages_merge",
         "fixtures/messages_crowdin.json": ":messages_crowdin",
+        "fixtures/messages_python.json": ":messages_python",
         "fixtures/messages_rust.json": ":messages_rust",
         "fixtures/compiled_ast.json": ":compiled_ast",
         "fixtures/compiled_multiple.json": ":compiled_multiple",
