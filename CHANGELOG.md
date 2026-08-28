@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0 (2026-08-28)
+
+## What's Changed
+* feat: support Python extraction sources by @longlho in https://github.com/formatjs/rules_formatjs/pull/99
+
+
+**Full Changelog**: https://github.com/formatjs/rules_formatjs/compare/v0.11.0...v0.12.0
+
 ## 0.11.0 (2026-08-07)
 
 ## What's Changed
