@@ -1,6 +1,18 @@
 {
+  "54SdURJwyz": {
+    "defaultMessage": "Your total is {total, number, ::currency/USD}.",
+    "description": "Checkout total"
+  },
   "python.greeting": {
     "defaultMessage": "Hello, {name}!",
     "description": "Greeting from Python"
+  },
+  "python.runtime.greeting": {
+    "defaultMessage": "Welcome, {name}!",
+    "description": "Greeting shown after sign-in"
+  },
+  "python.runtime.missing": {},
+  "python.runtime.ready": {
+    "defaultMessage": "Ready"
   }
 }
