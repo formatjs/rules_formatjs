@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.1 (2026-08-31)
+
+## What's Changed
+* chore: update FormatJS CLI to 1.6.0 by @longlho in https://github.com/formatjs/rules_formatjs/pull/101
+
+
+**Full Changelog**: https://github.com/formatjs/rules_formatjs/compare/v0.12.0...v0.12.1
+
 ## 0.12.0 (2026-08-28)
 
 ## What's Changed
