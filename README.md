@@ -315,11 +315,20 @@ bazel build //path/to:target \
 
 #### Message Collection (across dependencies)
 
-```bash
-bazel build //path/to:target \
+Use `message_collector_aspect` when a consumer needs original catalogs for a
+custom merge (for example, preserving every declaration location for shared IDs):
+
+```sh
+bazel build //app:main \
   --aspects=@rules_formatjs//formatjs:aspects.bzl%message_collector_aspect \
   --output_groups=all_messages
 ```
+
+The collector follows `deps` and `srcs`, collecting `FormatjsExtractInfo` from
+reachable targets. It uses transitive depsets to deduplicate shared catalogs,
+registers no merge actions, and requires no jq toolchain. An empty graph returns
+an empty `all_messages` output group. Raw source files still need an extraction
+target; attaching this aspect does not run extraction on arbitrary sources.
 
 ### Creating Custom Aspects
 

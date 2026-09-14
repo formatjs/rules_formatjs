@@ -114,41 +114,28 @@ message_validator_aspect = aspect(
 )
 
 def _message_collector_aspect_impl(target, ctx):
-    """Example aspect that collects all messages from a dependency tree.
-
-    This aspect traverses the dependency graph and collects all extracted
-    messages into a single aggregated file.
-    """
-
-    messages = []
-
-    # Collect from this target if it provides FormatjsExtractInfo
-    if FormatjsExtractInfo in target:
-        messages.append(target[FormatjsExtractInfo].messages)
-
-    # Collect from dependencies
-    if hasattr(ctx.rule.attr, "deps"):
-        for dep in ctx.rule.attr.deps:
+    direct = [target[FormatjsExtractInfo].messages] if FormatjsExtractInfo in target else []
+    transitive = []
+    for attr_name in ["deps", "srcs"]:
+        for dep in getattr(ctx.rule.attr, attr_name, []):
             if OutputGroupInfo in dep and hasattr(dep[OutputGroupInfo], "all_messages"):
-                messages.extend(dep[OutputGroupInfo].all_messages.to_list())
+                transitive.append(dep[OutputGroupInfo].all_messages)
 
-    # Create aggregated output if we have messages
-    if messages:
-        return [
-            OutputGroupInfo(
-                all_messages = depset(messages),
-            ),
-        ]
-
-    return []
+    return [OutputGroupInfo(all_messages = depset(direct, transitive = transitive))]
 
 message_collector_aspect = aspect(
     implementation = _message_collector_aspect_impl,
-    attr_aspects = ["deps"],
-    doc = """Example aspect that collects all messages from a dependency tree.
+    attr_aspects = ["deps", "srcs"],
+    doc = """Collect original message catalogs without registering merge actions.
 
-    This aspect can be used to gather all extracted messages from a target
-    and all its dependencies, useful for creating combined translation files.
+    Follows both deps and srcs, including libraries that carry extraction
+    metadata through a source target. Transitive depsets retain shared catalogs
+    only once without flattening the dependency graph at each target. No jq
+    toolchain is required. Empty graphs expose an empty all_messages group.
+
+    Consumers can merge the original catalogs with their own duplicate-ID and
+    source-location policies. This aspect does not extract messages from raw
+    sources: extraction targets must provide FormatjsExtractInfo.
 
     Usage:
         bazel build //path/to:target --aspects=//formatjs:aspects.bzl%message_collector_aspect \\
