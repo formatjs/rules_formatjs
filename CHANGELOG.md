@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.12.2 (2026-09-14)
+
+## What's Changed
+* fix: collect message catalogs through source dependencies by @longlho in https://github.com/formatjs/rules_formatjs/pull/105
+* chore(deps): update bazel-contrib/publish-to-bcr action to v1.5.0 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/98
+* chore(deps): update dependency @evilmartians/lefthook to v2.1.12 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/103
+* chore(deps): update commitlint monorepo to v21.2.2 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/97
+* chore(deps): update dependency oxfmt to ^0.66.0 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/96
+* chore(deps): update actions/setup-node action to v7 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/88
+* chore(deps): update pnpm to v12 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/104
+
+
+**Full Changelog**: https://github.com/formatjs/rules_formatjs/compare/v0.12.1...v0.12.2
+
 ## 0.12.1 (2026-08-31)
 
 ## What's Changed
