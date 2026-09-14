@@ -1,0 +1,62 @@
+load("@bazel_lib//lib:diff_test.bzl", "diff_test")
+load(":fixtures.bzl", "catalog", "collected_names", "graph")
+
+catalog(name = "shared")
+
+catalog(name = "source_only")
+
+catalog(name = "dependency_only")
+
+catalog(name = "unrelated")
+
+alias(
+    name = "shared_alias",
+    actual = ":shared",
+)
+
+graph(
+    name = "left",
+    deps = [
+        ":dependency_only",
+        ":shared_alias",
+    ],
+)
+
+graph(
+    name = "right",
+    srcs = [
+        "raw.txt",
+        ":shared",
+        ":source_only",
+    ],
+)
+
+graph(
+    name = "diamond",
+    srcs = [":right"],
+    deps = [":left"],
+)
+
+collected_names(
+    name = "diamond_names",
+    target = ":diamond",
+)
+
+diff_test(
+    name = "diamond_test",
+    file1 = ":diamond_names",
+    file2 = "expected.txt",
+)
+
+graph(name = "empty")
+
+collected_names(
+    name = "empty_names",
+    target = ":empty",
+)
+
+diff_test(
+    name = "empty_test",
+    file1 = ":empty_names",
+    file2 = "empty.txt",
+)
