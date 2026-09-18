@@ -1,6 +1,8 @@
+load("@bazel_lib//lib:diff_test.bzl", "diff_test")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_formatjs//formatjs:compile.bzl", "formatjs_compile")
 load("@rules_formatjs//formatjs:extract.bzl", "formatjs_extract")
+load(":large_sources.bzl", "large_sources")
 
 # Test basic extraction with default settings
 formatjs_extract(
@@ -125,4 +127,21 @@ write_source_files(
         "fixtures/compiled_ast.json": ":compiled_ast",
         "fixtures/compiled_multiple.json": ":compiled_multiple",
     },
+)
+
+large_sources(
+    name = "large_sources",
+    src = "test.tsx",
+)
+
+formatjs_extract(
+    name = "messages_large_source_list",
+    srcs = [":large_sources"],
+    id_interpolation_pattern = "[sha512:contenthash:base64:6]",
+)
+
+diff_test(
+    name = "large_source_list_test",
+    file1 = "fixtures/messages_default.json",
+    file2 = ":messages_large_source_list",
 )

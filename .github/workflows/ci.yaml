@@ -90,3 +90,7 @@ jobs:
         working-directory: examples/simple
         shell: bash
         run: bazel run "@rules_formatjs//cli" -- --version
+
+      - name: Extract messages from a large source list
+        shell: bash
+        run: bazel test //tests/arguments:large_source_list_test
