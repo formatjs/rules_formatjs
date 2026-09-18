@@ -46,7 +46,6 @@ def _formatjs_extract_impl(ctx):
     # Build arguments for formatjs CLI
     args = ctx.actions.args()
     args.add("extract")
-    args.add_all(ctx.files.srcs)
     args.add("--out-file", out_file)
 
     if ctx.attr.format:
@@ -79,10 +78,16 @@ def _formatjs_extract_impl(ctx):
     if ctx.attr.flatten:
         args.add("--flatten")
 
+    # Keep source lists below Windows command-line limits.
+    sources = ctx.actions.args()
+    sources.add_all(ctx.files.srcs)
+    sources.set_param_file_format("multiline")
+    sources.use_param_file("--in-file=%s", use_always = True)
+
     # Run formatjs extract (v0.1.1+ sorts keys by default)
     ctx.actions.run(
         executable = formatjs_cli_info.cli,
-        arguments = [args],
+        arguments = [args, sources],
         inputs = depset(ctx.files.srcs),
         outputs = [out_file],
         mnemonic = "FormatjsExtract",
