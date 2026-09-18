@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.3 (2026-09-18)
+
+## What's Changed
+* fix: use source lists for extraction on Windows by @longlho in https://github.com/formatjs/rules_formatjs/pull/109
+* chore(deps): update dependency oxfmt to ^0.67.0 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/107
+* chore(deps): update pnpm to v12.4.1 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/108
+
+
+**Full Changelog**: https://github.com/formatjs/rules_formatjs/compare/v0.12.2...v0.12.3
+
 ## 0.12.2 (2026-09-14)
 
 ## What's Changed
