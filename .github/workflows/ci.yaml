@@ -48,7 +48,7 @@ jobs:
           retention-days: 7
 
   linux-arm64-smoke:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@v7
       - uses: bazel-contrib/setup-bazel@0.19.0
