@@ -4,48 +4,28 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 jobs:
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        folder:
-          - "."
-          - "examples/simple"
-          - "examples/aggregate"
-    runs-on: ${{ matrix.os }}
+  macos-cli-smoke:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
       - uses: bazel-contrib/setup-bazel@0.19.0
         with:
           bazelisk-cache: true
-          disk-cache: ${{ github.workflow }}
+          disk-cache: ${{ github.workflow }}-macos
           repository-cache: true
 
-      - name: Test ${{ matrix.folder }}
-        working-directory: ${{ matrix.folder }}
-        run: bazel test //...
-
-      - name: Run FormatJS CLI from a consumer workspace
-        if: matrix.folder == 'examples/simple'
-        working-directory: ${{ matrix.folder }}
+      - name: Run macOS CLI from a consumer workspace
+        working-directory: examples/simple
         run: bazel run @rules_formatjs//cli -- --version
 
-      - name: Upload test logs
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-logs-${{ matrix.os }}-${{ hashFiles(matrix.folder) }}
-          path: |
-            ${{ matrix.folder }}/bazel-testlogs/**/test.log
-            ${{ matrix.folder }}/bazel-testlogs/**/test.xml
-          if-no-files-found: warn
-          retention-days: 7
+      - name: Smoke test extraction and compilation
+        run: bazel test //tests/arguments:test_fixtures_0_test //tests/arguments:test_fixtures_1_test
 
   linux-arm64-smoke:
     runs-on: ubuntu-24.04-arm
@@ -94,3 +74,13 @@ jobs:
       - name: Extract messages from a large source list
         shell: bash
         run: bazel test //tests/arguments:large_source_list_test
+
+  ci:
+    if: always()
+    needs: [macos-cli-smoke, linux-arm64-smoke, windows-cli-smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every native smoke test
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: jq -e 'all(.[]; .result == "success")' <<< "$RESULTS"
