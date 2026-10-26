@@ -1,0 +1,48 @@
+actions:
+  - name: "Test all targets"
+    container_image: "ubuntu-20.04"
+    triggers:
+      push:
+        branches: ["main", "gh-readonly-queue/*"]
+      pull_request:
+        branches: ["main"]
+    resource_requests:
+      memory: 4GB
+      disk: 16GB
+    steps:
+      - run: |
+          set -euo pipefail
+          for workspace in . examples/simple examples/aggregate; do
+            (
+              cd "$workspace"
+              bazel test --config=bb-workflow //...
+              bazel run --config=bb-workflow @rules_formatjs//cli -- --version
+            )
+          done
+
+  - name: "Cross-build all platforms"
+    container_image: "ubuntu-20.04"
+    triggers:
+      push:
+        branches: ["main", "gh-readonly-queue/*"]
+      pull_request:
+        branches: ["main"]
+    resource_requests:
+      memory: 4GB
+      disk: 16GB
+    steps:
+      # FormatJS CLI runs on the execution platform, regardless of target platform.
+      - run: |
+          set -euo pipefail
+          for workspace in . examples/simple examples/aggregate; do
+            (
+              cd "$workspace"
+              bazel query 'kind("formatjs_(extract|compile|aggregate|cli_executable) rule", //...)' > /tmp/formatjs-cross-targets
+              mapfile -t targets < /tmp/formatjs-cross-targets
+              test "${#targets[@]}" -gt 0
+              for platform in linux_x86_64 linux_aarch64 macos_x86_64 macos_aarch64 windows_x86_64; do
+                bazel build --config=bb-workflow \
+                  --platforms="@rules_formatjs//platforms:$platform" "${targets[@]}"
+              done
+            )
+          done

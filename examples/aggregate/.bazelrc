@@ -16,18 +16,7 @@ build --experimental_profile_include_target_label
 build --experimental_profile_include_primary_output
 common --bes_upload_mode=fully_async
 
-# BuildBuddy CI configuration
-# https://www.buildbuddy.io/docs/rbe-github-actions
-build:ci --build_metadata=ROLE=CI
-build:ci --build_metadata=VISIBILITY=PUBLIC
-build:ci --config=remote
-
-build:remote --bes_backend=grpcs://formatjs.buildbuddy.io
-build:remote --bes_results_url=https://formatjs.buildbuddy.io/invocation/
-build:remote --define=EXECUTOR=remote
-build:remote --jobs=50
-build:remote --remote_cache=grpcs://formatjs.buildbuddy.io
-build:remote --remote_timeout=10m
+import %workspace%/../../tools/buildbuddy.bazelrc
 
 # Try to import a user-specific .bazelrc
 try-import %workspace%/.bazelrc.user
