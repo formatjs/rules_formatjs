@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.12.4 (2026-10-26)
+
+## What's Changed
+* ci: move full tests and cross-platform builds to BuildBuddy by @longlho in https://github.com/formatjs/rules_formatjs/pull/119
+* chore(deps): update dependency @evilmartians/lefthook to v2.2.2 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/111
+* chore(deps): update commitlint monorepo to v21.2.4 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/114
+* chore(deps): update bazel-contrib/publish-to-bcr action to v1.5.1 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/115
+* chore(deps): update bazel-contrib/setup-bazel action to v0.19.1 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/118
+* chore(deps): update dependency ubuntu to v26 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/117
+* chore(deps): update dependency oxfmt to ^0.73.0 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/112
+* chore(deps): update dependency bazel to v9.3.1 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/116
+* chore(deps): update pnpm to v12.15.0 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/113
+* build(deps): update FormatJS CLI and Bazel modules by @longlho in https://github.com/formatjs/rules_formatjs/pull/121
+
+
+**Full Changelog**: https://github.com/formatjs/rules_formatjs/compare/v0.12.3...v0.12.4
+
 ## 0.12.3 (2026-09-18)
 
 ## What's Changed
