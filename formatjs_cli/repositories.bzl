@@ -1,8 +1,62 @@
 """Repository rules for FormatJS CLI toolchains."""
 
-DEFAULT_VERSION = "1.8.2"
+DEFAULT_VERSION = "1.10.0"
 
 FORMATJS_CLI_VERSIONS = {
+    "1.10.0": {
+        "darwin-arm64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.10.0/formatjs_cli-darwin-arm64",
+            "sha256": "207804af4d1956b89a46d12f289b7970bff58a1461bfbe564ba160d6858c4ade",
+        },
+        "linux-aarch64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.10.0/formatjs_cli-linux-arm64",
+            "sha256": "1c1bde576302790533407ff1eb9cab08242016561204209f86e66c578e6d9faa",
+        },
+        "linux-x64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.10.0/formatjs_cli-linux-x64",
+            "sha256": "0504d2fb2f061d300825f158e3ac7be3459444fe8788f6fd1d01ddf0a4b0660c",
+        },
+        "windows-x86_64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.10.0/formatjs_cli-win32-x64.exe",
+            "sha256": "1f0851c155400eeefdad59a843e60762d6fec615b3f5ad3aff5022b6612fe885",
+        },
+    },
+    "1.9.0": {
+        "darwin-arm64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.9.0/formatjs_cli-darwin-arm64",
+            "sha256": "175cbc553d46a51be7ca05b15f4fa48da7b2fafcb88f062aba93e7606cd08225",
+        },
+        "linux-aarch64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.9.0/formatjs_cli-linux-arm64",
+            "sha256": "8fee809aef301b4b33a6b7a8494f97ff7418adcb8945cf15988740c4bb025680",
+        },
+        "linux-x64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.9.0/formatjs_cli-linux-x64",
+            "sha256": "3a856f81c8e244c42c4c2e7450d00c96215ef3b18e85a153182c2a4e1e211de7",
+        },
+        "windows-x86_64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.9.0/formatjs_cli-win32-x64.exe",
+            "sha256": "9d4d6531ea9341364a12f6bf35112c42f20bca0663d9aca139e90c79b8342952",
+        },
+    },
+    "1.8.3": {
+        "darwin-arm64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.8.3/formatjs_cli-darwin-arm64",
+            "sha256": "91484dd41407418a73025030c7924c460c28c9c0e5d652c0513631208f0fd76c",
+        },
+        "linux-aarch64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.8.3/formatjs_cli-linux-arm64",
+            "sha256": "93639b8a867738d9c1c355f610b1e2c0f377aeb69c18d21dc20d9eec63d2db66",
+        },
+        "linux-x64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.8.3/formatjs_cli-linux-x64",
+            "sha256": "5fb74be17a9a679467de3d4c788c44305b135ecfd319e3ffc6965470b8a9aec5",
+        },
+        "windows-x86_64": {
+            "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.8.3/formatjs_cli-win32-x64.exe",
+            "sha256": "a785f813b221c3d6e9c47da1292a330ba2b897e4a23486902df33ee61885bb43",
+        },
+    },
     "1.8.2": {
         "darwin-arm64": {
             "url": "https://github.com/formatjs/formatjs/releases/download/formatjs_cli_v1.8.2/formatjs_cli-darwin-arm64",

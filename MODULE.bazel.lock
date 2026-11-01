@@ -233,14 +233,14 @@
   "moduleExtensions": {
     "//formatjs_cli:extensions.bzl%formatjs_cli": {
       "general": {
-        "bzlTransitiveDigest": "6YzRnJ7S+nXG3tqXKWFEZCww1pgHimCBokyHQsM76is=",
-        "usagesDigest": "wS322ntlUmE96KXqBsoQjiZM1mqGc8tgC4C/iyFTbcw=",
+        "bzlTransitiveDigest": "8ygB6i3JkGOqu+lHsc8+l2gblrL/W9f6ia1R2u5Lxwc=",
+        "usagesDigest": "nLR6/9V1ps1rPC7YLG1va9ttnmQR1+ynG7xen5bk4CM=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "formatjs_cli_toolchains_darwin_arm64": {
             "repoRuleId": "@@//formatjs_cli:repositories.bzl%_formatjs_cli_repo",
             "attributes": {
-              "version": "1.8.2",
+              "version": "1.10.0",
               "platform": "darwin-arm64",
               "exec_compatible_with": [
                 "@platforms//os:macos",
@@ -258,7 +258,7 @@
           "formatjs_cli_toolchains_linux_x64": {
             "repoRuleId": "@@//formatjs_cli:repositories.bzl%_formatjs_cli_repo",
             "attributes": {
-              "version": "1.8.2",
+              "version": "1.10.0",
               "platform": "linux-x64",
               "exec_compatible_with": [
                 "@platforms//os:linux",
@@ -270,7 +270,7 @@
           "formatjs_cli_toolchains_linux_aarch64": {
             "repoRuleId": "@@//formatjs_cli:repositories.bzl%_formatjs_cli_repo",
             "attributes": {
-              "version": "1.8.2",
+              "version": "1.10.0",
               "platform": "linux-aarch64",
               "exec_compatible_with": [
                 "@platforms//os:linux",
@@ -282,7 +282,7 @@
           "formatjs_cli_toolchains_windows_x86_64": {
             "repoRuleId": "@@//formatjs_cli:repositories.bzl%_formatjs_cli_repo",
             "attributes": {
-              "version": "1.8.2",
+              "version": "1.10.0",
               "platform": "windows-x86_64",
               "exec_compatible_with": [
                 "@platforms//os:windows",
