@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.5 (2026-11-01)
+
+## What's Changed
+* chore(deps): update dependency node to v26 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/123
+* chore(deps): update dependency oxfmt to ^0.74.0 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/122
+* chore: update FormatJS CLI to 1.10.0 by @longlho in https://github.com/formatjs/rules_formatjs/pull/124
+
+
+**Full Changelog**: https://github.com/formatjs/rules_formatjs/compare/v0.12.4...v0.12.5
+
 ## 0.12.4 (2026-10-26)
 
 ## What's Changed
