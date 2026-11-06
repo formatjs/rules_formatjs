@@ -54,6 +54,9 @@ def _collect_at(_target, ctx):
         "shared_root",
         "with_ignored",
         "leaf_select",
+        "scope_wrapper_root",
+        "scope_direct_root",
+        "collision_root",
     ]
 
 messages_aspect = formatjs_message_collector_aspect(
@@ -137,7 +140,7 @@ custom_action = rule(
 )
 
 def _scope(_target, ctx):
-    return ctx.label.name != "skipped"
+    return ctx.label.name not in ["skipped", "skipped_generated", "skipped_generated_wrapper"]
 
 scoped_aspect = formatjs_message_collector_aspect(
     name = "scoped",

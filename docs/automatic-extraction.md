@@ -97,7 +97,8 @@ CLI keeps only one location for duplicate IDs within a batch. Per-file catalogs
 preserve declarations across files and allow unchanged files to reuse cached
 extraction actions. Duplicate occurrences within one file retain the native CLI's
 behavior. Catalog order is deterministic; no intermediate merge actions are added.
-Consumers choose their duplicate-ID and source-location merge policies.
+Consumers choose their duplicate-ID and source-location merge policies. Output-name
+hash collisions receive deterministic suffixes instead of failing analysis.
 
 Existing `FormatjsExtractInfo` catalogs are collected unchanged. Automatic outputs
 are exposed through `FormatjsMessagesInfo` and `all_messages`; they do not replace
@@ -113,7 +114,10 @@ factory only collects existing catalogs and requires no CLI toolchain. The exist
 By default, only targets in the main repository contribute new source candidates.
 External dependencies can enable extraction and provide explicit catalogs without
 having their implementation scanned. Override `should_extract(target, ctx)` to
-change that target boundary. Only files owned by a contributing target's repository
+change that target boundary. Rejected sources stay excluded when ancestors forward
+them through source wrappers. Independent allowed declarations of the same source
+remain eligible. These scope decisions stay in depsets until the extraction root.
+Only files owned by a contributing target's repository
 are eligible, including when source labels point into another repository.
 
 `source_extensions` defaults to `ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `rs`, and `py`.

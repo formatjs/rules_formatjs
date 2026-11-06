@@ -15,6 +15,10 @@ FormatjsMessagesInfo = provider(
         "covered_srcs": "Depset of source files represented by explicit extraction metadata.",
         "explicit_catalogs": "Original explicit catalogs, excluding this aspect's extraction actions.",
         "sources_by_repository": "Candidate source depsets grouped by declaring repository.",
+        "scope_excluded_srcs": "Files rejected by source scope, including forwarded outputs.",
+        "scope_direct_srcs": "Direct source files explicitly allowed by an opted-in target.",
+        "scope_allowed_owners": "Allowed source targets explicitly referenced by an opted-in target.",
+        "allows_sources": "Whether this target passes the source-scope predicate.",
     },
 )
 
@@ -28,13 +32,21 @@ def _targets(ctx, attributes):
         result.extend(value if type(value) == "list" else [value] if value != None else [])
     return result
 
-def _extract_catalogs(ctx, name, sources_by_repository, covered, extensions, options):
+def _source_path(source):
+    return source.path
+
+def _extract_catalogs(ctx, name, sources_by_repository, covered, scope_excluded, scope_direct, scope_owners, extensions, options):
     excluded = {source: True for source in covered.to_list()}
+    rejected = {source: True for source in scope_excluded.to_list()}
+    direct = {source: True for source in scope_direct.to_list()}
+    owners = {owner: True for owner in scope_owners.to_list()}
     sources = [
         source
         for repository, candidates in sources_by_repository.items()
         for source in candidates.to_list()
-        if source.extension in extensions and source.owner.repo_name == repository and source not in excluded
+        if source.extension in extensions and source.owner.repo_name == repository and source not in excluded and (
+            source not in rejected or source in direct or source.owner in owners
+        )
     ]
     if not sources:
         return []
@@ -50,16 +62,18 @@ def _extract_catalogs(ctx, name, sources_by_repository, covered, extensions, opt
     catalogs = []
     names = {}
     for source in sources:
-        filename = source.basename[:80] + "." + str(hash(source.path)) + ".json"
-        if filename in names:
-            fail("Extraction output collision between %s and %s" % (source.path, names[filename]))
-        names[filename] = source.path
-        catalogs.append(formatjs_extract_action(
-            ctx,
-            [source],
-            ctx.actions.declare_file(ctx.label.name + "_" + name + "/" + filename),
-            **options
-        ).messages)
+        filename = source.basename[:80] + "." + str(hash(source.path))
+        names.setdefault(filename, []).append(source)
+    for filename, files in names.items():
+        # Disambiguate hash collisions without lengthening every source path.
+        for index, source in enumerate(sorted(files, key = _source_path) if len(files) > 1 else files):
+            suffix = "_" + str(index) if len(files) > 1 else ""
+            catalogs.append(formatjs_extract_action(
+                ctx,
+                [source],
+                ctx.actions.declare_file(ctx.label.name + "_" + name + "/" + filename + suffix + ".json"),
+                **options
+            ).messages)
     return catalogs
 
 def formatjs_message_collector_aspect(
@@ -126,12 +140,38 @@ def formatjs_message_collector_aspect(
         for dependency in dependencies:
             for repository, sources in dependency.sources_by_repository.items():
                 groups.setdefault(repository, []).append(sources)
-        if uses_runtime and should_extract(target, ctx):
+        source_targets = _targets(ctx, source_attributes)
+        allowed = extraction_enabled and should_extract(target, ctx)
+        rejected = []
+        direct = []
+        if extraction_enabled and not allowed:
+            rejected = [dependency[DefaultInfo].files for dependency in source_targets if DefaultInfo in dependency]
+            if DefaultInfo in target:
+                rejected.append(target[DefaultInfo].files)
+        if uses_runtime and allowed:
             groups.setdefault(ctx.label.repo_name, []).extend([
                 dependency[DefaultInfo].files
-                for dependency in _targets(ctx, source_attributes)
+                for dependency in source_targets
                 if DefaultInfo in dependency
             ])
+            direct = [
+                dependency[DefaultInfo].files
+                for dependency in source_targets
+                if DefaultInfo in dependency and FormatjsMessagesInfo not in dependency
+            ]
+
+        # Ancestors can forward rejected files through DefaultInfo. Keep scope
+        # decisions lazy, while preserving independent allowed declarations.
+        scope_excluded = depset(transitive = rejected + [dependency.scope_excluded_srcs for dependency in dependencies])
+        scope_direct = depset(transitive = direct + [dependency.scope_direct_srcs for dependency in dependencies])
+        scope_owners = depset(
+            [
+                dependency.label
+                for dependency in source_targets
+                if FormatjsMessagesInfo in dependency and dependency[FormatjsMessagesInfo].allows_sources
+            ] if uses_runtime and allowed else [],
+            transitive = [dependency.scope_allowed_owners for dependency in dependencies],
+        )
         sources_by_repository = {
             repository: depset(transitive = sources)
             for repository, sources in groups.items()
@@ -150,6 +190,9 @@ def formatjs_message_collector_aspect(
                     name,
                     sources_by_repository,
                     covered,
+                    scope_excluded,
+                    scope_direct,
+                    scope_owners,
                     source_extensions,
                     extraction_options,
                 ), transitive = [explicit_catalogs])
@@ -160,6 +203,10 @@ def formatjs_message_collector_aspect(
                 covered_srcs = covered,
                 explicit_catalogs = explicit_catalogs,
                 sources_by_repository = sources_by_repository,
+                scope_excluded_srcs = scope_excluded,
+                scope_direct_srcs = scope_direct,
+                scope_allowed_owners = scope_owners,
+                allows_sources = allowed,
             ),
             OutputGroupInfo(all_messages = catalogs),
         ]
