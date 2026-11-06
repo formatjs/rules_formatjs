@@ -1,5 +1,5 @@
 {
-  "catalogs": ["legacy.json", "root_messages.json"],
+  "catalog_count": 3,
   "sources": ["legacy.tsx"],
   "uses_runtime": true
 }

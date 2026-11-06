@@ -28,73 +28,46 @@ def _targets(ctx, attributes):
         result.extend(value if type(value) == "list" else [value] if value != None else [])
     return result
 
-_JQ_TOOLCHAIN = Label("@jq.bzl//jq/toolchain:type")
-_SPAWN_TOOLCHAIN = Label("@bazel_lib//lib:spawn_binary_toolchain_type")
-
-_SOURCE_FILTER = """
-    ($covered | split("\\n") | map(select(length > 0)) | INDEX(.)) as $excluded
-    | $candidates
-    | split("\\n")[]
-    | select(length > 0)
-    | select($excluded[.] == null)
-"""
-
-def _source_mapper(repository, extensions):
-    def _path(source):
-        if source.extension in extensions and source.owner.repo_name == repository:
-            return source.path
-        return None
-
-    return _path
-
-def _source_list(ctx, name, sources_by_repository, covered, source_extensions):
-    excluded = ctx.actions.declare_file(ctx.label.name + "_" + name + ".covered")
-    excluded_args = ctx.actions.args()
-    excluded_args.add_all(covered)
-    excluded_args.set_param_file_format("multiline")
-    ctx.actions.write(excluded, excluded_args)
-
-    candidates = ctx.actions.declare_file(ctx.label.name + "_" + name + ".candidates")
-    candidate_args = ctx.actions.args()
-    for repository, sources in sources_by_repository.items():
-        candidate_args.add_all(
+def _extract_catalogs(ctx, name, sources_by_repository, covered, extensions, options):
+    excluded = {source: True for source in covered.to_list()}
+    sources = [
+        source
+        for repository, candidates in sources_by_repository.items()
+        for source in candidates.to_list()
+        if source.extension in extensions and source.owner.repo_name == repository and source not in excluded
+    ]
+    if not sources:
+        return []
+    if not options.get("extract_source_location", False):
+        return [formatjs_extract_action(
+            ctx,
             sources,
-            map_each = _source_mapper(repository, source_extensions),
-            allow_closure = True,
-        )
-    candidate_args.set_param_file_format("multiline")
-    ctx.actions.write(candidates, candidate_args)
+            ctx.actions.declare_file(ctx.label.name + "_" + name + ".json"),
+            **options
+        ).messages]
 
-    output = ctx.actions.declare_file(ctx.label.name + "_" + name + ".sources")
-    jq = ctx.toolchains[_JQ_TOOLCHAIN].jqinfo.bin
-    spawn = ctx.toolchains[_SPAWN_TOOLCHAIN].spawn_binary_info.bin
-    args = ctx.actions.args()
-    args.add("--stdout", output)
-    args.add("--")
-    args.add(jq)
-    args.add_all(["--null-input", "--raw-output", _SOURCE_FILTER])
-    args.add("--rawfile")
-    args.add("covered")
-    args.add(excluded)
-    args.add("--rawfile")
-    args.add("candidates")
-    args.add(candidates)
-    ctx.actions.run(
-        executable = spawn,
-        arguments = [args],
-        inputs = [excluded, candidates],
-        tools = [jq],
-        outputs = [output],
-        mnemonic = "FormatjsSourceList",
-        toolchain = _SPAWN_TOOLCHAIN,
-    )
-    return output
+    # The CLI keeps only one location for duplicate IDs within a batch.
+    catalogs = []
+    names = {}
+    for source in sources:
+        filename = source.basename[:80] + "." + str(hash(source.path)) + ".json"
+        if filename in names:
+            fail("Extraction output collision between %s and %s" % (source.path, names[filename]))
+        names[filename] = source.path
+        catalogs.append(formatjs_extract_action(
+            ctx,
+            [source],
+            ctx.actions.declare_file(ctx.label.name + "_" + name + "/" + filename),
+            **options
+        ).messages)
+    return catalogs
 
 def formatjs_message_collector_aspect(
         name = "messages",
         runtime_labels = [],
         is_runtime = None,
         should_extract = _main_repository,
+        collect_at = None,
         source_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py"],
         dependency_attributes = ["deps", "srcs"],
         source_attributes = ["srcs"],
@@ -108,6 +81,8 @@ def formatjs_message_collector_aspect(
             FormatjsRuntimeInfo. Extraction is disabled when neither is supplied.
         should_extract: Predicate (target, ctx) limiting source owners; defaults
             to targets in the main repository. Collection still crosses others.
+        collect_at: Optional predicate (target, ctx) selecting extraction roots for
+            rule adapters. Without it, CLI users set --aspects_parameters=formatjs_root=//app:main.
         source_extensions: File extensions without leading dots.
         dependency_attributes: Dependency edges followed for runtime detection
             and catalog collection. Label and label-list attributes work.
@@ -116,7 +91,7 @@ def formatjs_message_collector_aspect(
 
     Returns:
         An aspect exposing FormatjsMessagesInfo and all_messages output group.
-        Newly extracted targets also expose FormatjsExtractInfo.
+        Explicit extraction providers remain unchanged on the underlying target.
     """
     if not name:
         fail("formatjs_message_collector_aspect requires a nonempty name")
@@ -132,9 +107,10 @@ def formatjs_message_collector_aspect(
             for dependency in _targets(ctx, attributes)
             if FormatjsMessagesInfo in dependency
         ]
+        runtime_targets = {runtime.label: True for runtime in ctx.attr._formatjs_runtime_targets}
         uses_runtime = (
-            target.label in runtime_labels or
-            ctx.label in runtime_labels or
+            target.label in runtime_targets or
+            ctx.label in runtime_targets or
             (is_runtime != None and is_runtime(target, ctx)) or
             any([dependency.uses_runtime for dependency in dependencies])
         )
@@ -160,22 +136,24 @@ def formatjs_message_collector_aspect(
             repository: depset(transitive = sources)
             for repository, sources in groups.items()
         }
-        sources = depset(transitive = sources_by_repository.values())
         catalogs = explicit_catalogs
-        providers = []
-        if sources:
-            source_list = _source_list(ctx, name, sources_by_repository, covered, source_extensions)
-            info = formatjs_extract_action(
-                ctx,
-                sources,
-                ctx.actions.declare_file(ctx.label.name + "_" + name + ".json"),
-                source_list = source_list,
-                **extraction_options
-            )
-            catalogs = depset([info.messages], transitive = [explicit_catalogs])
-            if FormatjsExtractInfo not in target:
-                providers.append(info)
-        return providers + [
+        if extraction_enabled:
+            if collect_at != None:
+                is_root = collect_at(target, ctx)
+            else:
+                if not ctx.attr.formatjs_root:
+                    fail("Set --aspects_parameters=formatjs_root=//app:main or configure collect_at")
+                is_root = str(ctx.label) == ctx.attr.formatjs_root
+            if is_root:
+                catalogs = depset(_extract_catalogs(
+                    ctx,
+                    name,
+                    sources_by_repository,
+                    covered,
+                    source_extensions,
+                    extraction_options,
+                ), transitive = [explicit_catalogs])
+        return [
             FormatjsMessagesInfo(
                 catalogs = catalogs,
                 uses_runtime = uses_runtime,
@@ -186,8 +164,14 @@ def formatjs_message_collector_aspect(
             OutputGroupInfo(all_messages = catalogs),
         ]
 
+    attrs = {
+        "_formatjs_runtime_targets": attr.label_list(default = runtime_labels, cfg = "target"),
+    }
+    if extraction_enabled and collect_at == None:
+        attrs["formatjs_root"] = attr.string(default = "")
     return aspect(
         implementation = _impl,
         attr_aspects = attributes,
-        toolchains = [Label("//formatjs_cli:toolchain_type"), _JQ_TOOLCHAIN, _SPAWN_TOOLCHAIN] if extraction_enabled else [],
+        attrs = attrs,
+        toolchains = [Label("//formatjs_cli:toolchain_type")] if extraction_enabled else [],
     )

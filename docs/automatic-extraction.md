@@ -1,16 +1,12 @@
 # Dependency-triggered extraction
 
-`formatjs_message_collector_aspect` extracts sources when a configured dependency enables
-FormatJS. It follows `deps` and `srcs`, handles aliases and `select()`, and collects
-original catalogs in a depset. It registers no intermediate merge actions and adds
-no targets to compilation macros.
+`formatjs_message_collector_aspect` follows configured `deps` and `srcs`, detects
+Intl usage, and carries source plans and explicit catalogs in depsets. Extraction
+runs only at selected roots. Libraries do not flatten transitive source sets.
 
-The ruleset has no dependency on Python, Rust or JavaScript build rules. Runtime
-integrations supply `runtime_labels` or an `is_runtime(target, ctx)` predicate.
-Labels can differ across consumers; no Intl package name is hardcoded. A predicate
-can inspect native providers or a `FormatjsRuntimeInfo` marker.
+## CLI use
 
-For example, define `build/i18n.bzl` with your runtime labels:
+Define `build/i18n.bzl`:
 
 ```starlark
 load("@rules_formatjs//formatjs:defs.bzl", "formatjs_message_collector_aspect")
@@ -25,34 +21,51 @@ rust_messages = formatjs_message_collector_aspect(
 )
 ```
 
-Runtime labels must be `Label` objects, not strings. Use `Label(...)` in the
-calling module so repository mappings resolve there.
-Alternatively, `is_runtime(target, ctx)` can recognize a crate or wheel by its
-native provider without relying on a particular target label. Either match enables
-extraction; detection propagates through configured dependencies.
-
-Without runtime labels or a predicate, the same factory only collects existing
-catalogs and requires no CLI toolchain. The existing `message_collector_aspect`
-entrypoint uses this configuration.
-
-Then collect messages from an application:
+Select the extraction root explicitly:
 
 ```sh
 bazel build //app:main \
   --aspects=//build:i18n.bzl%rust_messages \
+  --aspects_parameters=formatjs_root=//app:main \
   --output_groups=all_messages
 ```
 
-Detection uses resolved dependencies during analysis, not source imports or
-macro-time inspection of dependency labels. Runtime recognition does not require
-an implicit dependency on the runtime at every aspect node. A Python adapter can
-inspect a wheel's metadata or native provider without configuring that wheel for
-unrelated targets.
+`formatjs_root` must be the actual target's absolute canonical label, not an alias
+or relative label. It scopes materialization to that consumer. Other nodes only
+propagate source plans and existing catalogs.
 
-## Collect at the consumer
+Runtime labels must be caller-created `Label` objects. This preserves the caller's
+repository mappings. Aliases, including configurable aliases, are resolved in the
+target configuration through private resolver dependencies. They are not traversed
+for Intl detection, so configuring a resolver does not opt unrelated graphs into
+extraction. Their files are not extraction inputs and are not built for detection.
+Resolution can configure runtime dependencies in otherwise unrelated graphs; those
+configured targets are shared within each configuration.
 
-Consumers can access `FormatjsMessagesInfo.catalogs` to merge once, applying their
-own duplicate-ID and source-location policies:
+Alternatively, supply `is_runtime(target, ctx)` to inspect native language providers
+or a `FormatjsRuntimeInfo` marker. Predicate-only adapters add no resolver dependency
+on the runtime. No language build rules are imported by this ruleset.
+
+## Rule adapters
+
+Rule-propagated aspects use a `collect_at(target, ctx)` predicate instead of the CLI
+parameter. Choose application or catalog-consumer roots, not every library:
+
+```starlark
+def _at_application(_target, ctx):
+    return ctx.label == Label("//app:main")
+
+rust_messages = formatjs_message_collector_aspect(
+    name = "rust_messages",
+    runtime_labels = [Label("@my_crates//:formatjs_intl")],
+    source_extensions = ["rs"],
+    collect_at = _at_application,
+    extract_source_location = True,
+)
+```
+
+This configuration also works from the CLI without `--aspects_parameters`.
+Consumers access `FormatjsMessagesInfo.catalogs` on a selected root:
 
 ```starlark
 load("@rules_formatjs//formatjs:defs.bzl", "FormatjsMessagesInfo")
@@ -66,77 +79,59 @@ source_catalogs = rule(
 )
 ```
 
-`FormatjsMessagesInfo.uses_runtime` carries the detection result;
-`FormatjsMessagesInfo.covered_srcs` identifies sources already represented by
-explicit extraction metadata. Shared catalogs are deduplicated in the depset. Existing
-`FormatjsExtractInfo` catalogs are collected, and their sources are reused rather
-than extracted again. Partial metadata excludes only its declared sources;
-uncovered files are still extracted. Targets without explicit metadata also expose
-`FormatjsExtractInfo` for the automatic catalog.
+At intermediate nodes, `catalogs` contains only explicit catalogs. The provider also
+exposes `uses_runtime`, `covered_srcs`, `explicit_catalogs`, and source depsets grouped
+by declaring repository. A predicate that always returns false gives metadata-only
+propagation for adapters that materialize catalogs themselves.
 
-The aspect carries candidate source depsets by declaring repository and explicit
-catalogs through the graph. Each requested root exposes one automatic catalog plus
-its explicit catalogs. Parent outputs do not depend on children's automatic
-catalogs, so requesting one root runs one automatic extraction. Source lists and
-coverage subtraction are materialized at execution, without flattening transitive
-coverage during analysis. An empty filtered list produces an empty catalog.
+## Catalogs and execution
 
-Automatic extraction uses the FormatJS CLI, jq and bazel_lib's `spawn_binary`
-toolchains. Filtering runs pinned native executables; no host shell or Python is
-used. Collection-only mode requires none of these toolchains. Source artifacts are
-declared conservatively as action inputs, including files later excluded by scope,
-extension or explicit metadata.
+Roots flatten candidate and covered sources once. Ownership, extension and explicit
+coverage filters run before extraction actions are registered. Excluded generated
+artifacts are not action inputs, so their producers do not run for catalog builds.
+Partial explicit metadata excludes only its declared sources.
 
-Use one configured aspect for each collection pass. For mixed-language graphs,
-combine runtime recognition and source extensions in that aspect. Give each
-instantiated aspect a unique `name` to distinguish its output files.
+Without source locations, uncovered sources use one batch extraction per root.
+With `extract_source_location = True`, each file gets its own catalog: the native
+CLI keeps only one location for duplicate IDs within a batch. Per-file catalogs
+preserve declarations across files and allow unchanged files to reuse cached
+extraction actions. Duplicate occurrences within one file retain the native CLI's
+behavior. Catalog order is deterministic; no intermediate merge actions are added.
+Consumers choose their duplicate-ID and source-location merge policies.
+
+Existing `FormatjsExtractInfo` catalogs are collected unchanged. Automatic outputs
+are exposed through `FormatjsMessagesInfo` and `all_messages`; they do not replace
+or add a singular `FormatjsExtractInfo` on the underlying target.
+
+Automatic mode requires only the native FormatJS CLI toolchain. No host shell,
+Python or filtering toolchain is used. Without runtime labels or a predicate, the
+factory only collects existing catalogs and requires no CLI toolchain. The existing
+`message_collector_aspect` entrypoint keeps that collection-only behavior.
 
 ## Scope and options
 
-By default, only targets in the main repository get new extraction actions.
-External dependencies can enable extraction, and their explicitly provided catalogs
-are still collected, but their raw sources are not automatically scanned. Override
-`should_extract(target, ctx)` to change this boundary.
-
-Only files owned by the target's repository are automatically extracted, including
-when source labels point into another repository.
+By default, only targets in the main repository contribute new source candidates.
+External dependencies can enable extraction and provide explicit catalogs without
+having their implementation scanned. Override `should_extract(target, ctx)` to
+change that target boundary. Only files owned by a contributing target's repository
+are eligible, including when source labels point into another repository.
 
 `source_extensions` defaults to `ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `rs`, and `py`.
-`dependency_attributes` controls dependency traversal; `source_attributes` controls
-source inputs and is also traversed for extraction metadata. Both label and
-label-list dependency attributes are supported. No extraction action is registered
-without runtime detection and eligible, uncovered sources.
+`dependency_attributes` controls detection/collection edges; `source_attributes`
+controls source inputs and is also traversed for extraction metadata. Both label
+and label-list attributes work. Aliases and `select()` are handled after resolution.
 
-Other keyword arguments are the extraction options accepted by
-`formatjs_extract_action`, with the same defaults as `formatjs_extract`.
+Other keyword arguments are options accepted by `formatjs_extract_action`.
+Use one configured aspect per collection pass. Mixed-language adapters can combine
+runtime recognition and source extensions in that aspect. Give separate instances
+unique `name` values to distinguish output files.
 
-This API collects source messages. Translation archive ownership, locale projection,
-catalog merging and runtime installation remain consumer decisions.
+Archive ownership, translation projection, catalog merging and runtime installation
+remain consumer decisions.
 
-## Reuse the extraction action
+## Custom extraction actions
 
-Custom rules and aspects can register extraction without duplicating CLI arguments,
-source response-file handling or toolchain wiring:
-
-```starlark
-load("@rules_formatjs//formatjs:defs.bzl", "formatjs_extract_action")
-
-def _extract_impl(ctx):
-    info = formatjs_extract_action(
-        ctx,
-        ctx.files.srcs,
-        ctx.actions.declare_file(ctx.label.name + ".json"),
-        extract_source_location = True,
-    )
-    return [DefaultInfo(files = depset([info.messages])), info]
-
-extract = rule(
-    implementation = _extract_impl,
-    attrs = {"srcs": attr.label_list(allow_files = True)},
-    toolchains = ["@rules_formatjs//formatjs_cli:toolchain_type"],
-)
-```
-
-The caller declares the output and supplies source Files. The helper returns
-`FormatjsExtractInfo`; it neither creates a target nor merges catalogs. The existing
-`formatjs_extract` rule uses the same helper.
+`formatjs_extract_action(ctx, srcs, out, **options)` registers the native action and
+returns `FormatjsExtractInfo`. `srcs` accepts a list or depset of source Files; the
+caller declares the output and CLI toolchain. The existing `formatjs_extract` rule
+uses the same helper, including its options and response-file handling.

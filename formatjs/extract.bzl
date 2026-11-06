@@ -45,8 +45,7 @@ def formatjs_extract_action(
         throws = True,
         pragma = "",
         preserve_whitespace = False,
-        flatten = False,
-        source_list = None):
+        flatten = False):
     """Registers extraction for a rule or aspect and returns its metadata.
 
     Args:
@@ -63,7 +62,6 @@ def formatjs_extract_action(
         pragma: Metadata pragma.
         preserve_whitespace: Preserve message whitespace.
         flatten: Hoist selectors.
-        source_list: Optional prefiltered newline-delimited source list File.
 
     Returns:
         FormatjsExtractInfo for the registered action.
@@ -103,8 +101,8 @@ def formatjs_extract_action(
     sources.use_param_file("--in-file=%s", use_always = True)
     ctx.actions.run(
         executable = ctx.toolchains[_FORMATJS_TOOLCHAIN_TYPE].formatjs_cli_info.cli,
-        arguments = [args, "--in-file=" + source_list.path] if source_list else [args, sources],
-        inputs = depset([source_list] if source_list else [], transitive = [source_files]),
+        arguments = [args, sources],
+        inputs = source_files,
         outputs = [out],
         mnemonic = "FormatjsExtract",
         progress_message = "Extracting messages from %{label}",

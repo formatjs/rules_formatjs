@@ -39,8 +39,26 @@ metadata = rule(
     },
 )
 
+def _collect_at(_target, ctx):
+    return ctx.label.name in [
+        "root",
+        "leaf",
+        "plain",
+        "unsupported",
+        "adapter_source",
+        "custom_attributes",
+        "skipped",
+        "partial_metadata",
+        "chain_99",
+        "consumer",
+        "shared_root",
+        "with_ignored",
+        "leaf_select",
+    ]
+
 messages_aspect = formatjs_message_collector_aspect(
     name = "messages",
+    collect_at = _collect_at,
     runtime_labels = [
         Label("//tests/auto_extract:runtime"),
         Label("//tests/auto_extract:runtime_with_sources"),
@@ -56,7 +74,7 @@ def _report_impl(ctx):
     info = ctx.attr.target[FormatjsMessagesInfo]
     output = ctx.actions.declare_file(ctx.label.name + ".json")
     ctx.actions.write(output, json.encode({
-        "catalogs": sorted([file.basename for file in info.catalogs.to_list()]),
+        "catalog_count": len(info.catalogs.to_list()),
         "sources": sorted([file.basename for file in info.covered_srcs.to_list()]),
         "uses_runtime": info.uses_runtime,
     }))
@@ -77,6 +95,7 @@ def _adapter_runtime(_target, ctx):
 
 adapter_aspect = formatjs_message_collector_aspect(
     name = "adapter",
+    collect_at = _collect_at,
     is_runtime = _adapter_runtime,
     source_extensions = ["py"],
 )
@@ -88,6 +107,7 @@ adapter_catalogs = rule(
 
 custom_attributes_aspect = formatjs_message_collector_aspect(
     name = "custom",
+    collect_at = _collect_at,
     runtime_labels = [Label("//tests/auto_extract:runtime")],
     dependency_attributes = ["runtime_dep"],
     source_attributes = ["source"],
@@ -121,6 +141,7 @@ def _scope(_target, ctx):
 
 scoped_aspect = formatjs_message_collector_aspect(
     name = "scoped",
+    collect_at = _collect_at,
     runtime_labels = [Label("//tests/auto_extract:runtime")],
     should_extract = _scope,
 )
@@ -138,7 +159,8 @@ collection_only_catalogs = rule(
 )
 
 unmatched_aspect = formatjs_message_collector_aspect(
-    runtime_labels = [Label("//tests/auto_extract:adapter_runtime")],
+    collect_at = _collect_at,
+    runtime_labels = [Label("//tests/auto_extract:ignored_generated")],
 )
 
 unmatched_report = rule(
@@ -163,3 +185,44 @@ def source_chain(name, count):
         )
     catalogs(name = name + "_catalogs", target = ":" + name + "_" + str(count - 1))
     report(name = name + "_report", target = ":" + name + "_" + str(count - 1))
+
+alias_aspect = formatjs_message_collector_aspect(
+    runtime_labels = [Label("//tests/auto_extract:runtime_alias")],
+    collect_at = _collect_at,
+)
+
+alias_catalogs = rule(
+    implementation = _catalogs_impl,
+    attrs = {"target": attr.label(aspects = [alias_aspect])},
+)
+
+def _ignored_impl(ctx):
+    output = ctx.actions.declare_file(ctx.label.name + ".txt")
+    ctx.actions.run_shell(outputs = [output], command = "exit 1", mnemonic = "IgnoredProducer")
+    return [DefaultInfo(files = depset([output]))]
+
+ignored = rule(implementation = _ignored_impl)
+
+cli_aspect = formatjs_message_collector_aspect(
+    runtime_labels = [Label("//tests/auto_extract:runtime_alias"), Label("//tests/auto_extract:runtime_with_sources")],
+    extract_source_location = True,
+)
+
+selected_alias_aspect = formatjs_message_collector_aspect(
+    runtime_labels = [Label("//tests/auto_extract:runtime_selected_alias")],
+    collect_at = _collect_at,
+)
+
+selected_alias_catalogs = rule(
+    implementation = _catalogs_impl,
+    attrs = {"target": attr.label(aspects = [selected_alias_aspect])},
+)
+
+batch_aspect = formatjs_message_collector_aspect(
+    name = "batch",
+    runtime_labels = [Label("//tests/auto_extract:runtime_alias")],
+    collect_at = _collect_at,
+)
+
+batch_catalogs = rule(implementation = _catalogs_impl, attrs = {"target": attr.label(aspects = [batch_aspect])})
+batch_report = rule(implementation = _report_impl, attrs = {"target": attr.label(aspects = [batch_aspect])})

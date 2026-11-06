@@ -1,7 +1,7 @@
 load("@jq.bzl", "jq")
 load("@jq.bzl//jq:jq.bzl", "jq_test")
 load("//formatjs:defs.bzl", "formatjs_extract")
-load(":fixtures.bzl", "adapter_catalogs", "catalogs", "collection_only_catalogs", "custom_action", "custom_catalogs", "graph", "metadata", "report", "runtime", "scoped_catalogs", "source_chain", "unmatched_report")
+load(":fixtures.bzl", "adapter_catalogs", "alias_catalogs", "batch_catalogs", "batch_report", "catalogs", "collection_only_catalogs", "custom_action", "custom_catalogs", "graph", "ignored", "metadata", "report", "runtime", "scoped_catalogs", "selected_alias_catalogs", "source_chain", "unmatched_report")
 
 exports_files(
     ["foreign.py"],
@@ -257,7 +257,7 @@ source_chain(
 
 jq_test(
     name = "source_chain_messages_test",
-    file1 = ":chain_catalogs",
+    file1 = ":chain_merged",
     file2 = "chain_count.json",
     filter1 = "length",
 )
@@ -266,7 +266,7 @@ jq_test(
     name = "source_chain_catalog_test",
     file1 = ":chain_report",
     file2 = "chain_catalog_count.json",
-    filter1 = ".catalogs | length",
+    filter1 = ".catalog_count",
 )
 
 catalogs(
@@ -276,6 +276,162 @@ catalogs(
 
 jq_test(
     name = "empty_filtered_catalog_test",
-    file1 = ":unsupported_catalogs",
+    file1 = ":unsupported_merged",
     file2 = "empty_catalog.json",
+)
+
+jq(
+    name = "unsupported_merged",
+    srcs = [":unsupported_catalogs"],
+    args = ["--slurp"],
+    filter = "(. // []) | add // {}",
+)
+
+alias_catalogs(
+    name = "alias_output",
+    target = ":leaf",
+)
+
+jq_test(
+    name = "aliased_runtime_label_test",
+    file1 = ":alias_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+ignored(
+    name = "ignored_generated",
+    tags = ["manual"],
+)
+
+graph(
+    name = "with_ignored",
+    srcs = [
+        "leaf.py",
+        ":ignored_generated",
+    ],
+    tags = ["manual"],
+    deps = [":runtime"],
+)
+
+catalogs(
+    name = "ignored_output",
+    target = ":with_ignored",
+)
+
+jq_test(
+    name = "ignored_producer_test",
+    file1 = ":ignored_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+graph(
+    name = "shared_one",
+    srcs = ["shared_one.py"],
+    deps = [":runtime"],
+)
+
+graph(
+    name = "shared_two",
+    srcs = ["shared_two.py"],
+    deps = [":runtime"],
+)
+
+graph(
+    name = "shared_root",
+    deps = [
+        ":shared_one",
+        ":shared_two",
+    ],
+)
+
+catalogs(
+    name = "shared_catalogs",
+    target = ":shared_root",
+)
+
+jq(
+    name = "shared_locations",
+    srcs = [":shared_catalogs"],
+    args = ["--slurp"],
+    filter = "[.[] | .[\"shared.message\"].file] | sort",
+)
+
+jq_test(
+    name = "shared_locations_test",
+    file1 = ":shared_locations",
+    file2 = "shared_locations.json",
+)
+
+jq(
+    name = "chain_merged",
+    srcs = [":chain_catalogs"],
+    args = ["--slurp"],
+    filter = "add",
+)
+
+config_setting(
+    name = "windows",
+    constraint_values = ["@platforms//os:windows"],
+)
+
+graph(name = "runtime_windows")
+
+alias(
+    name = "runtime_selected_alias",
+    actual = select({
+        ":windows": ":runtime_windows",
+        "//conditions:default": ":runtime",
+    }),
+)
+
+graph(
+    name = "leaf_select",
+    srcs = ["leaf.py"],
+    deps = [":runtime_selected_alias"],
+)
+
+selected_alias_catalogs(
+    name = "selected_alias_output",
+    target = ":leaf_select",
+)
+
+jq_test(
+    name = "selected_runtime_alias_test",
+    file1 = ":selected_alias_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+platform(
+    name = "windows_platform",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+batch_catalogs(
+    name = "batch_chain_catalogs",
+    target = ":chain_99",
+)
+
+batch_report(
+    name = "batch_chain_report",
+    target = ":chain_99",
+)
+
+jq_test(
+    name = "batch_messages_test",
+    file1 = ":batch_chain_catalogs",
+    file2 = "chain_count.json",
+    filter1 = "length",
+)
+
+jq_test(
+    name = "batch_catalog_test",
+    file1 = ":batch_chain_report",
+    file2 = "batch_catalog_count.json",
+    filter1 = ".catalog_count",
 )

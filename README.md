@@ -266,7 +266,8 @@ Use [`formatjs_message_collector_aspect`](docs/automatic-extraction.md) to extra
 when their configured dependencies enable FormatJS, then collect catalogs through
 transitive depsets. Supply runtime labels or a runtime predicate; no
 language-rule dependency is required. Custom rules/aspects can reuse
-`formatjs_extract_action` instead of duplicating CLI wiring.
+`formatjs_extract_action` instead of duplicating CLI wiring. Select extraction roots
+with `collect_at` for rule adapters or `formatjs_root` for CLI use.
 
 ### Message Aggregation Aspect
 
