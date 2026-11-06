@@ -1,4 +1,4 @@
-"""Dependency-triggered source extraction without language-rule dependencies."""
+"""Catalog collection with optional dependency-triggered source extraction."""
 
 load(":extract.bzl", "FormatjsExtractInfo", "formatjs_extract_action")
 
@@ -7,7 +7,7 @@ FormatjsRuntimeInfo = provider(
     fields = [],
 )
 
-FormatjsAutoExtractInfo = provider(
+FormatjsMessagesInfo = provider(
     doc = "Original catalogs and runtime detection propagated by automatic extraction.",
     fields = {
         "catalogs": "Depset of original catalogs; no intermediate merges.",
@@ -15,9 +15,6 @@ FormatjsAutoExtractInfo = provider(
         "srcs": "Depset of source files already represented on source edges.",
     },
 )
-
-def _marked_runtime(target, _ctx):
-    return FormatjsRuntimeInfo in target
 
 def _main_repository(_target, ctx):
     return ctx.label.repo_name == ""
@@ -30,26 +27,28 @@ def _targets(ctx, attributes):
     return result
 
 def _extracted_sources(target):
-    if FormatjsAutoExtractInfo in target:
-        return target[FormatjsAutoExtractInfo].srcs
+    if FormatjsMessagesInfo in target:
+        return target[FormatjsMessagesInfo].srcs
     if FormatjsExtractInfo in target:
         return getattr(target[FormatjsExtractInfo], "srcs", depset())
     return depset()
 
-def formatjs_auto_extract_aspect(
-        name,
-        is_runtime = _marked_runtime,
+def formatjs_message_collector_aspect(
+        name = "messages",
+        runtime_labels = [],
+        is_runtime = None,
         should_extract = _main_repository,
         source_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py"],
         dependency_attributes = ["deps", "srcs"],
         source_attributes = ["srcs"],
         **extraction_options):
-    """Creates an extraction/collection aspect enabled by configured dependencies.
+    """Creates a collector that can extract sources based on configured dependencies.
 
     Args:
         name: Unique suffix for this aspect's output files.
-        is_runtime: Predicate (target, ctx) identifying the runtime; defaults to
-            FormatjsRuntimeInfo. Language adapters can inspect native providers.
+        runtime_labels: Labels of runtime targets that enable extraction.
+        is_runtime: Optional predicate (target, ctx) for native providers or
+            FormatjsRuntimeInfo. Extraction is disabled when neither is supplied.
         should_extract: Predicate (target, ctx) limiting source owners; defaults
             to targets in the main repository. Collection still crosses others.
         source_extensions: File extensions without leading dots.
@@ -59,20 +58,27 @@ def formatjs_auto_extract_aspect(
         **extraction_options: Keyword options accepted by formatjs_extract_action.
 
     Returns:
-        An aspect exposing FormatjsAutoExtractInfo and all_messages output group.
+        An aspect exposing FormatjsMessagesInfo and all_messages output group.
         Newly extracted targets also expose FormatjsExtractInfo.
     """
     if not name:
-        fail("formatjs_auto_extract_aspect requires a nonempty name")
+        fail("formatjs_message_collector_aspect requires a nonempty name")
+    runtime_labels = [Label(label) if type(label) == "string" else label for label in runtime_labels]
+    extraction_enabled = bool(runtime_labels) or is_runtime != None
     attributes = depset(dependency_attributes + source_attributes).to_list()
 
     def _impl(target, ctx):
         dependencies = [
-            dependency[FormatjsAutoExtractInfo]
+            dependency[FormatjsMessagesInfo]
             for dependency in _targets(ctx, attributes)
-            if FormatjsAutoExtractInfo in dependency
+            if FormatjsMessagesInfo in dependency
         ]
-        uses_runtime = is_runtime(target, ctx) or any([dependency.uses_runtime for dependency in dependencies])
+        uses_runtime = (
+            target.label in runtime_labels or
+            ctx.label in runtime_labels or
+            (is_runtime != None and is_runtime(target, ctx)) or
+            any([dependency.uses_runtime for dependency in dependencies])
+        )
         catalogs = []
         providers = []
         covered = depset(transitive = [_extracted_sources(dependency) for dependency in _targets(ctx, source_attributes)])
@@ -99,7 +105,7 @@ def formatjs_auto_extract_aspect(
                 providers.append(info)
         all_catalogs = depset(catalogs, transitive = [dependency.catalogs for dependency in dependencies])
         return providers + [
-            FormatjsAutoExtractInfo(
+            FormatjsMessagesInfo(
                 catalogs = all_catalogs,
                 uses_runtime = uses_runtime,
                 srcs = depset(own_sources, transitive = [covered]),
@@ -110,5 +116,5 @@ def formatjs_auto_extract_aspect(
     return aspect(
         implementation = _impl,
         attr_aspects = attributes,
-        toolchains = [Label("//formatjs_cli:toolchain_type")],
+        toolchains = [Label("//formatjs_cli:toolchain_type")] if extraction_enabled else [],
     )

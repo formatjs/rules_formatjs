@@ -1,6 +1,6 @@
 """Real source graphs for the public automatic extraction API."""
 
-load("//formatjs:defs.bzl", "FormatjsAutoExtractInfo", "FormatjsExtractInfo", "FormatjsRuntimeInfo", "formatjs_auto_extract_aspect", "formatjs_extract_action")
+load("//formatjs:defs.bzl", "FormatjsExtractInfo", "FormatjsMessagesInfo", "FormatjsRuntimeInfo", "formatjs_extract_action", "formatjs_message_collector_aspect")
 
 def _graph_impl(ctx):
     return [DefaultInfo(files = depset(ctx.files.srcs))]
@@ -38,17 +38,21 @@ metadata = rule(
     },
 )
 
-messages_aspect = formatjs_auto_extract_aspect(
+messages_aspect = formatjs_message_collector_aspect(
     name = "messages",
+    runtime_labels = [
+        Label("//tests/auto_extract:runtime"),
+        Label("//tests/auto_extract:runtime_with_sources"),
+    ],
     extract_source_location = True,
     id_interpolation_pattern = "[sha512:contenthash:base64:10]",
 )
 
 def _catalogs_impl(ctx):
-    return [DefaultInfo(files = ctx.attr.target[FormatjsAutoExtractInfo].catalogs)]
+    return [DefaultInfo(files = ctx.attr.target[FormatjsMessagesInfo].catalogs)]
 
 def _report_impl(ctx):
-    info = ctx.attr.target[FormatjsAutoExtractInfo]
+    info = ctx.attr.target[FormatjsMessagesInfo]
     output = ctx.actions.declare_file(ctx.label.name + ".json")
     ctx.actions.write(output, json.encode({
         "catalogs": sorted([file.basename for file in info.catalogs.to_list()]),
@@ -70,7 +74,7 @@ report = rule(
 def _adapter_runtime(_target, ctx):
     return getattr(ctx.rule.attr, "runtime", False)
 
-adapter_aspect = formatjs_auto_extract_aspect(
+adapter_aspect = formatjs_message_collector_aspect(
     name = "adapter",
     is_runtime = _adapter_runtime,
     source_extensions = ["py"],
@@ -81,8 +85,9 @@ adapter_catalogs = rule(
     attrs = {"target": attr.label(aspects = [adapter_aspect])},
 )
 
-custom_attributes_aspect = formatjs_auto_extract_aspect(
+custom_attributes_aspect = formatjs_message_collector_aspect(
     name = "custom",
+    runtime_labels = [Label("//tests/auto_extract:runtime")],
     dependency_attributes = ["runtime_dep"],
     source_attributes = ["source"],
     source_extensions = ["py"],
@@ -113,12 +118,29 @@ custom_action = rule(
 def _scope(_target, ctx):
     return ctx.label.name != "skipped"
 
-scoped_aspect = formatjs_auto_extract_aspect(
+scoped_aspect = formatjs_message_collector_aspect(
     name = "scoped",
+    runtime_labels = [Label("//tests/auto_extract:runtime")],
     should_extract = _scope,
 )
 
 scoped_catalogs = rule(
     implementation = _catalogs_impl,
     attrs = {"target": attr.label(aspects = [scoped_aspect])},
+)
+
+collection_only_aspect = formatjs_message_collector_aspect()
+
+collection_only_catalogs = rule(
+    implementation = _catalogs_impl,
+    attrs = {"target": attr.label(aspects = [collection_only_aspect])},
+)
+
+unmatched_aspect = formatjs_message_collector_aspect(
+    runtime_labels = [Label("//tests/auto_extract:adapter_runtime")],
+)
+
+unmatched_report = rule(
+    implementation = _report_impl,
+    attrs = {"target": attr.label(aspects = [unmatched_aspect])},
 )

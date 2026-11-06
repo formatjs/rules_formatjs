@@ -262,9 +262,9 @@ Since `formatjs_extract` is a custom rule, you can attach Bazel aspects to it fo
 
 ### Automatic extraction from runtime dependencies
 
-Use [`formatjs_auto_extract_aspect`](docs/automatic-extraction.md) to extract sources
+Use [`formatjs_message_collector_aspect`](docs/automatic-extraction.md) to extract sources
 when their configured dependencies enable FormatJS, then collect catalogs through
-transitive depsets. Supply a runtime predicate or `FormatjsRuntimeInfo` marker; no
+transitive depsets. Supply runtime labels or a runtime predicate; no
 language-rule dependency is required. Custom rules/aspects can reuse
 `formatjs_extract_action` instead of duplicating CLI wiring.
 

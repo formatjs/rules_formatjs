@@ -1,35 +1,38 @@
 # Dependency-triggered extraction
 
-`formatjs_auto_extract_aspect` extracts sources when a configured dependency enables
+`formatjs_message_collector_aspect` extracts sources when a configured dependency enables
 FormatJS. It follows `deps` and `srcs`, handles aliases and `select()`, and collects
 original catalogs in a depset. It registers no intermediate merge actions and adds
 no targets to compilation macros.
 
 The ruleset has no dependency on Python, Rust or JavaScript build rules. Runtime
-integrations can return `FormatjsRuntimeInfo()` from their native rule. For external
-runtimes, supply a predicate that recognizes the language's native provider.
+integrations supply `runtime_labels` or an `is_runtime(target, ctx)` predicate.
+Labels can differ across consumers; no Intl package name is hardcoded. A predicate
+can inspect native providers or a `FormatjsRuntimeInfo` marker.
 
-For example, a Rust consumer can define `build/i18n.bzl`:
+For example, define `build/i18n.bzl` with your runtime labels:
 
 ```starlark
-load("@rules_formatjs//formatjs:defs.bzl", "formatjs_auto_extract_aspect")
-load("@rules_rust//rust:defs.bzl", "rust_common")
+load("@rules_formatjs//formatjs:defs.bzl", "formatjs_message_collector_aspect")
 
-def _rust_runtime(target, _ctx):
-    return (
-        rust_common.crate_info in target and
-        target[rust_common.crate_info].name == "formatjs_intl"
-    )
-
-rust_messages = formatjs_auto_extract_aspect(
+rust_messages = formatjs_message_collector_aspect(
     name = "rust_messages",
-    is_runtime = _rust_runtime,
+    runtime_labels = [Label("@my_crates//:formatjs_intl")],
     source_extensions = ["rs"],
     id_interpolation_pattern = "[sha512:contenthash:base64:10]",
     extract_source_location = True,
     flatten = True,
 )
 ```
+
+Use `Label(...)` in the calling module so repository mappings resolve there.
+Alternatively, `is_runtime(target, ctx)` can recognize a crate or wheel by its
+native provider without relying on a particular target label. Either match enables
+extraction; detection propagates through configured dependencies.
+
+Without runtime labels or a predicate, the same factory only collects existing
+catalogs and requires no CLI toolchain. The existing `message_collector_aspect`
+entrypoint uses this configuration.
 
 Then collect messages from an application:
 
@@ -47,14 +50,14 @@ unrelated targets.
 
 ## Collect at the consumer
 
-Consumers can access `FormatjsAutoExtractInfo.catalogs` to merge once, applying their
+Consumers can access `FormatjsMessagesInfo.catalogs` to merge once, applying their
 own duplicate-ID and source-location policies:
 
 ```starlark
-load("@rules_formatjs//formatjs:defs.bzl", "FormatjsAutoExtractInfo")
+load("@rules_formatjs//formatjs:defs.bzl", "FormatjsMessagesInfo")
 
 def _catalogs_impl(ctx):
-    return [DefaultInfo(files = ctx.attr.target[FormatjsAutoExtractInfo].catalogs)]
+    return [DefaultInfo(files = ctx.attr.target[FormatjsMessagesInfo].catalogs)]
 
 source_catalogs = rule(
     implementation = _catalogs_impl,
@@ -62,8 +65,8 @@ source_catalogs = rule(
 )
 ```
 
-`FormatjsAutoExtractInfo.uses_runtime` carries the detection result;
-`FormatjsAutoExtractInfo.srcs` identifies sources already represented on source
+`FormatjsMessagesInfo.uses_runtime` carries the detection result;
+`FormatjsMessagesInfo.srcs` identifies sources already represented on source
 edges. Shared catalogs are deduplicated in the depset. Existing
 `FormatjsExtractInfo` catalogs are collected, and their sources are reused rather
 than extracted again. Newly extracted targets also expose `FormatjsExtractInfo`.

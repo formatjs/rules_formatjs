@@ -10,10 +10,10 @@ load(
     _formatjs_aggregate_aspect = "formatjs_aggregate_aspect",
 )
 load(
-    ":auto_extract.bzl",
-    _FormatjsAutoExtractInfo = "FormatjsAutoExtractInfo",
+    ":collector.bzl",
+    _FormatjsMessagesInfo = "FormatjsMessagesInfo",
     _FormatjsRuntimeInfo = "FormatjsRuntimeInfo",
-    _formatjs_auto_extract_aspect = "formatjs_auto_extract_aspect",
+    _formatjs_message_collector_aspect = "formatjs_message_collector_aspect",
 )
 load(":compile.bzl", _formatjs_compile = "formatjs_compile")
 load(":extract.bzl", _FormatjsExtractInfo = "FormatjsExtractInfo", _formatjs_extract = "formatjs_extract", _formatjs_extract_action = "formatjs_extract_action")
@@ -34,6 +34,6 @@ FormatjsAggregateInfo = _FormatjsAggregateInfo
 
 # Public API - Rule/aspect integration
 formatjs_extract_action = _formatjs_extract_action
-formatjs_auto_extract_aspect = _formatjs_auto_extract_aspect
-FormatjsAutoExtractInfo = _FormatjsAutoExtractInfo
+formatjs_message_collector_aspect = _formatjs_message_collector_aspect
+FormatjsMessagesInfo = _FormatjsMessagesInfo
 FormatjsRuntimeInfo = _FormatjsRuntimeInfo
