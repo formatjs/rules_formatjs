@@ -260,6 +260,15 @@ Since `formatjs_extract` is a custom rule, you can attach Bazel aspects to it fo
 - Aggregating messages across multiple targets
 - Custom reporting and analysis
 
+### Automatic extraction from runtime dependencies
+
+Use [`formatjs_message_collector_aspect`](docs/automatic-extraction.md) to extract sources
+when their configured dependencies enable FormatJS, then collect catalogs through
+transitive depsets. Supply runtime labels or a runtime predicate; no
+language-rule dependency is required. Custom rules/aspects can reuse
+`formatjs_extract_action` instead of duplicating CLI wiring. Select extraction roots
+with `collect_at` for rule adapters or `formatjs_root` for CLI use.
+
 ### Message Aggregation Aspect
 
 The `formatjs_aggregate_aspect` collects and merges extracted messages from a target and all its dependencies into a single JSON file using `jq`.

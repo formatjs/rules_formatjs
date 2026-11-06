@@ -2,6 +2,7 @@
 
 exports_files([
     "defs.bzl",
+    "collector.bzl",
     "extract.bzl",
     "compile.bzl",
     "aggregate.bzl",

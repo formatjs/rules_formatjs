@@ -3,6 +3,7 @@
 This module demonstrates how to create aspects that work with formatjs_extract.
 """
 
+load(":collector.bzl", "formatjs_message_collector_aspect")
 load(":extract.bzl", "FormatjsExtractInfo")
 
 def _message_stats_aspect_impl(target, ctx):
@@ -113,32 +114,5 @@ message_validator_aspect = aspect(
     """,
 )
 
-def _message_collector_aspect_impl(target, ctx):
-    direct = [target[FormatjsExtractInfo].messages] if FormatjsExtractInfo in target else []
-    transitive = []
-    for attr_name in ["deps", "srcs"]:
-        for dep in getattr(ctx.rule.attr, attr_name, []):
-            if OutputGroupInfo in dep and hasattr(dep[OutputGroupInfo], "all_messages"):
-                transitive.append(dep[OutputGroupInfo].all_messages)
-
-    return [OutputGroupInfo(all_messages = depset(direct, transitive = transitive))]
-
-message_collector_aspect = aspect(
-    implementation = _message_collector_aspect_impl,
-    attr_aspects = ["deps", "srcs"],
-    doc = """Collect original message catalogs without registering merge actions.
-
-    Follows both deps and srcs, including libraries that carry extraction
-    metadata through a source target. Transitive depsets retain shared catalogs
-    only once without flattening the dependency graph at each target. No jq
-    toolchain is required. Empty graphs expose an empty all_messages group.
-
-    Consumers can merge the original catalogs with their own duplicate-ID and
-    source-location policies. This aspect does not extract messages from raw
-    sources: extraction targets must provide FormatjsExtractInfo.
-
-    Usage:
-        bazel build //path/to:target --aspects=//formatjs:aspects.bzl%message_collector_aspect \\
-                                      --output_groups=all_messages
-    """,
-)
+# Preserve the collection-only entrypoint without requiring a CLI toolchain.
+message_collector_aspect = formatjs_message_collector_aspect()

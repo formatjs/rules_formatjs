@@ -1,0 +1,534 @@
+load("@jq.bzl", "jq")
+load("@jq.bzl//jq:jq.bzl", "jq_test")
+load("//formatjs:defs.bzl", "formatjs_extract")
+load(":fixtures.bzl", "adapter_catalogs", "alias_catalogs", "batch_catalogs", "batch_report", "catalogs", "collection_only_catalogs", "custom_action", "custom_catalogs", "graph", "ignored", "metadata", "python_source", "report", "runtime", "scoped_catalogs", "selected_alias_catalogs", "source_chain", "unmatched_report")
+
+exports_files(
+    ["foreign.py"],
+    visibility = ["//visibility:public"],
+)
+
+runtime(name = "runtime")
+
+runtime(
+    name = "runtime_with_sources",
+    srcs = ["foreign.py"],
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "runtime_alias",
+    actual = ":runtime",
+)
+
+graph(
+    name = "leaf",
+    srcs = select({"//conditions:default": ["leaf.py"]}),
+    deps = select({"//conditions:default": [":runtime_alias"]}),
+)
+
+alias(
+    name = "leaf_alias",
+    actual = ":leaf",
+)
+
+graph(
+    name = "bridge",
+    deps = [":leaf_alias"],
+)
+
+formatjs_extract(
+    name = "legacy",
+    srcs = ["legacy.tsx"],
+    extract_source_location = True,
+)
+
+metadata(
+    name = "legacy_sources",
+    srcs = ["legacy.tsx"],
+    extraction = ":legacy",
+)
+
+graph(
+    name = "root",
+    srcs = [
+        "root.rs",
+        ":legacy_sources",
+    ],
+    deps = [
+        ":bridge",
+        ":leaf",
+    ],
+)
+
+catalogs(
+    name = "root_catalogs",
+    target = ":root",
+)
+
+jq(
+    name = "merged",
+    srcs = [":root_catalogs"],
+    args = ["--slurp"],
+    filter = "add | [.[] | (.defaultMessage // .message)] | sort",
+)
+
+jq_test(
+    name = "messages_test",
+    file1 = ":merged",
+    file2 = "messages.json",
+)
+
+report(
+    name = "root_report",
+    target = ":root",
+)
+
+jq_test(
+    name = "collection_test",
+    file1 = ":root_report",
+    file2 = "report.json",
+)
+
+graph(
+    name = "plain",
+    srcs = ["leaf.py"],
+)
+
+report(
+    name = "plain_report",
+    target = ":plain",
+)
+
+jq_test(
+    name = "no_runtime_test",
+    file1 = ":plain_report",
+    file2 = "empty.json",
+)
+
+graph(
+    name = "unsupported",
+    srcs = ["ignored.txt"],
+    deps = [":runtime"],
+)
+
+report(
+    name = "unsupported_report",
+    target = ":unsupported",
+)
+
+jq_test(
+    name = "unsupported_extension_test",
+    file1 = ":unsupported_report",
+    file2 = "unsupported.json",
+)
+
+graph(
+    name = "adapter_runtime",
+    runtime = True,
+)
+
+graph(
+    name = "adapter_source",
+    srcs = ["leaf.py"],
+    deps = [":adapter_runtime"],
+)
+
+adapter_catalogs(
+    name = "adapter_output",
+    target = ":adapter_source",
+)
+
+jq_test(
+    name = "runtime_adapter_test",
+    file1 = ":adapter_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+graph(
+    name = "custom_attributes",
+    runtime_dep = ":runtime_alias",
+    source = "leaf.py",
+)
+
+custom_catalogs(
+    name = "custom_output",
+    target = ":custom_attributes",
+)
+
+jq_test(
+    name = "custom_attributes_test",
+    file1 = ":custom_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+custom_action(
+    name = "action_output",
+    srcs = ["root.rs"],
+)
+
+formatjs_extract(
+    name = "rule_output",
+    srcs = ["root.rs"],
+    extract_source_location = True,
+    id_interpolation_pattern = "[sha512:contenthash:base64:10]",
+)
+
+jq_test(
+    name = "action_rule_parity_test",
+    file1 = ":action_output",
+    file2 = ":rule_output",
+)
+
+graph(
+    name = "skipped",
+    srcs = ["root.rs"],
+    deps = [":leaf"],
+)
+
+scoped_catalogs(
+    name = "scoped_output",
+    target = ":skipped",
+)
+
+jq_test(
+    name = "custom_scope_test",
+    file1 = ":scoped_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+collection_only_catalogs(
+    name = "collection_only_output",
+    target = ":root",
+)
+
+jq_test(
+    name = "collection_only_test",
+    file1 = ":collection_only_output",
+    file2 = ":legacy",
+)
+
+unmatched_report(
+    name = "unmatched_output",
+    target = ":leaf",
+)
+
+jq_test(
+    name = "unmatched_runtime_test",
+    file1 = ":unmatched_output",
+    file2 = "empty.json",
+)
+
+metadata(
+    name = "partial_metadata",
+    srcs = [
+        "leaf.py",
+        "legacy.tsx",
+    ],
+    extraction = ":legacy",
+    deps = [":runtime"],
+)
+
+catalogs(
+    name = "partial_catalogs",
+    target = ":partial_metadata",
+)
+
+jq(
+    name = "partial_merged",
+    srcs = [":partial_catalogs"],
+    args = ["--slurp"],
+    filter = "add | [.[] | (.defaultMessage // .message)] | sort",
+)
+
+jq_test(
+    name = "partial_metadata_test",
+    file1 = ":partial_merged",
+    file2 = "partial.json",
+)
+
+source_chain(
+    name = "chain",
+    count = 100,
+)
+
+jq_test(
+    name = "source_chain_messages_test",
+    file1 = ":chain_merged",
+    file2 = "chain_count.json",
+    filter1 = "length",
+)
+
+jq_test(
+    name = "source_chain_catalog_test",
+    file1 = ":chain_report",
+    file2 = "chain_catalog_count.json",
+    filter1 = ".catalog_count",
+)
+
+catalogs(
+    name = "unsupported_catalogs",
+    target = ":unsupported",
+)
+
+jq_test(
+    name = "empty_filtered_catalog_test",
+    file1 = ":unsupported_merged",
+    file2 = "empty_catalog.json",
+)
+
+jq(
+    name = "unsupported_merged",
+    srcs = [":unsupported_catalogs"],
+    args = ["--slurp"],
+    filter = "(. // []) | add // {}",
+)
+
+alias_catalogs(
+    name = "alias_output",
+    target = ":leaf",
+)
+
+jq_test(
+    name = "aliased_runtime_label_test",
+    file1 = ":alias_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+ignored(
+    name = "ignored_generated",
+    tags = ["manual"],
+)
+
+graph(
+    name = "with_ignored",
+    srcs = [
+        "leaf.py",
+        ":ignored_generated",
+    ],
+    tags = ["manual"],
+    deps = [":runtime"],
+)
+
+catalogs(
+    name = "ignored_output",
+    target = ":with_ignored",
+)
+
+jq_test(
+    name = "ignored_producer_test",
+    file1 = ":ignored_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+graph(
+    name = "shared_one",
+    srcs = ["shared_one.py"],
+    deps = [":runtime"],
+)
+
+graph(
+    name = "shared_two",
+    srcs = ["shared_two.py"],
+    deps = [":runtime"],
+)
+
+graph(
+    name = "shared_root",
+    deps = [
+        ":shared_one",
+        ":shared_two",
+    ],
+)
+
+catalogs(
+    name = "shared_catalogs",
+    target = ":shared_root",
+)
+
+jq(
+    name = "shared_locations",
+    srcs = [":shared_catalogs"],
+    args = ["--slurp"],
+    filter = "[.[] | .[\"shared.message\"].file] | sort",
+)
+
+jq_test(
+    name = "shared_locations_test",
+    file1 = ":shared_locations",
+    file2 = "shared_locations.json",
+)
+
+jq(
+    name = "chain_merged",
+    srcs = [":chain_catalogs"],
+    args = ["--slurp"],
+    filter = "add",
+)
+
+config_setting(
+    name = "windows",
+    constraint_values = ["@platforms//os:windows"],
+)
+
+graph(name = "runtime_windows")
+
+alias(
+    name = "runtime_selected_alias",
+    actual = select({
+        ":windows": ":runtime_windows",
+        "//conditions:default": ":runtime",
+    }),
+)
+
+graph(
+    name = "leaf_select",
+    srcs = ["leaf.py"],
+    deps = [":runtime_selected_alias"],
+)
+
+selected_alias_catalogs(
+    name = "selected_alias_output",
+    target = ":leaf_select",
+)
+
+jq_test(
+    name = "selected_runtime_alias_test",
+    file1 = ":selected_alias_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+platform(
+    name = "windows_platform",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+batch_catalogs(
+    name = "batch_chain_catalogs",
+    target = ":chain_99",
+)
+
+batch_report(
+    name = "batch_chain_report",
+    target = ":chain_99",
+)
+
+jq_test(
+    name = "batch_messages_test",
+    file1 = ":batch_chain_catalogs",
+    file2 = "chain_count.json",
+    filter1 = "length",
+)
+
+jq_test(
+    name = "batch_catalog_test",
+    file1 = ":batch_chain_report",
+    file2 = "batch_catalog_count.json",
+    filter1 = ".catalog_count",
+)
+
+python_source(name = "skipped_generated")
+
+python_source(name = "allowed_generated")
+
+graph(
+    name = "skipped_generated_wrapper",
+    srcs = [":allowed_generated"],
+)
+
+graph(
+    name = "scope_wrapper",
+    srcs = [
+        ":skipped",
+        ":skipped_generated_wrapper",
+    ],
+)
+
+graph(
+    name = "scope_wrapper_root",
+    srcs = [
+        ":scope_wrapper",
+        ":skipped_generated",
+    ],
+)
+
+scoped_catalogs(
+    name = "scope_wrapper_output",
+    target = ":scope_wrapper_root",
+)
+
+jq(
+    name = "scope_wrapper_merged",
+    srcs = [":scope_wrapper_output"],
+    args = ["--slurp"],
+    filter = "add | [.[] | (.defaultMessage // .message)] | sort",
+)
+
+jq_test(
+    name = "scope_wrapper_test",
+    file1 = ":scope_wrapper_merged",
+    file2 = "python.json",
+)
+
+graph(
+    name = "scope_direct_root",
+    srcs = [
+        "root.rs",
+        ":allowed_generated",
+        ":scope_wrapper",
+    ],
+)
+
+scoped_catalogs(
+    name = "scope_direct_output",
+    target = ":scope_direct_root",
+)
+
+jq(
+    name = "scope_direct_merged",
+    srcs = [":scope_direct_output"],
+    args = ["--slurp"],
+    filter = "add | [.[] | (.defaultMessage // .message)] | sort",
+)
+
+jq_test(
+    name = "scope_direct_test",
+    file1 = ":scope_direct_merged",
+    file2 = "scope_direct.json",
+)
+
+graph(
+    name = "collision_root",
+    srcs = [
+        "Aa/messages.py",
+        "BB/messages.py",
+    ],
+    deps = [":runtime"],
+)
+
+catalogs(
+    name = "collision_output",
+    target = ":collision_root",
+)
+
+jq(
+    name = "collision_merged",
+    srcs = [":collision_output"],
+    args = ["--slurp"],
+    filter = "add | [.[] | (.defaultMessage // .message)] | sort",
+)
+
+jq_test(
+    name = "output_collision_test",
+    file1 = ":collision_merged",
+    file2 = "collisions.json",
+)

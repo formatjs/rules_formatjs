@@ -1,0 +1,37 @@
+load("@jq.bzl//jq:jq.bzl", "jq_test")
+load("@rules_formatjs//tests/auto_extract:fixtures.bzl", "catalogs", "graph")
+load(":extract.bzl", "extract")
+
+graph(
+    name = "consumer",
+    srcs = [
+        "messages.py",
+        "@rules_formatjs//tests/auto_extract:foreign.py",
+    ],
+    deps = ["@rules_formatjs//tests/auto_extract:runtime_with_sources"],
+)
+
+catalogs(
+    name = "messages",
+    target = ":consumer",
+)
+
+jq_test(
+    name = "main_repository_only_test",
+    file1 = ":messages",
+    file2 = "expected.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+extract(
+    name = "custom_rule",
+    srcs = ["messages.py"],
+    out = "custom_rule.json",
+)
+
+jq_test(
+    name = "consumer_action_test",
+    file1 = ":custom_rule",
+    file2 = "expected.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
