@@ -17,6 +17,8 @@ For more information about the FormatJS CLI and its extraction features, see:
 https://formatjs.github.io/docs/tooling/cli
 """
 
+_FORMATJS_TOOLCHAIN_TYPE = Label("//formatjs_cli:toolchain_type")
+
 FormatjsExtractInfo = provider(
     doc = """Provider containing information about extracted FormatJS messages.
 
@@ -30,87 +32,108 @@ FormatjsExtractInfo = provider(
     },
 )
 
-def _formatjs_extract_impl(ctx):
-    """Implementation of the formatjs_extract rule."""
+def formatjs_extract_action(
+        ctx,
+        srcs,
+        out,
+        format = "",
+        id_interpolation_pattern = "",
+        extract_source_location = False,
+        additional_component_names = [],
+        additional_function_names = [],
+        ignore = [],
+        throws = True,
+        pragma = "",
+        preserve_whitespace = False,
+        flatten = False):
+    """Registers extraction for a rule or aspect and returns its metadata.
 
-    # Get FormatJS CLI from toolchain
-    toolchain = ctx.toolchains["@rules_formatjs//formatjs_cli:toolchain_type"]
-    formatjs_cli_info = toolchain.formatjs_cli_info
+    Args:
+        ctx: Rule or aspect context with the FormatJS CLI toolchain.
+        srcs: List of source Files.
+        out: Caller-declared output File.
+        format: CLI output formatter.
+        id_interpolation_pattern: Generated message ID pattern.
+        extract_source_location: Include source locations.
+        additional_component_names: Additional component names.
+        additional_function_names: Additional function names.
+        ignore: Source exclusion patterns.
+        throws: Fail on extraction errors.
+        pragma: Metadata pragma.
+        preserve_whitespace: Preserve message whitespace.
+        flatten: Hoist selectors.
 
-    # Determine output file
-    if ctx.outputs.out:
-        out_file = ctx.outputs.out
-    else:
-        out_file = ctx.actions.declare_file(ctx.label.name + ".json")
-
-    # Build arguments for formatjs CLI
+    Returns:
+        FormatjsExtractInfo for the registered action.
+    """
     args = ctx.actions.args()
     args.add("extract")
-    args.add("--out-file", out_file)
-
-    if ctx.attr.format:
-        args.add("--format", ctx.attr.format)
-
-    if ctx.attr.id_interpolation_pattern:
-        args.add("--id-interpolation-pattern", ctx.attr.id_interpolation_pattern)
-
-    if ctx.attr.extract_source_location:
+    args.add("--out-file", out)
+    for flag, value in [
+        ("--format", format),
+        ("--id-interpolation-pattern", id_interpolation_pattern),
+    ]:
+        if value:
+            args.add(flag, value)
+    if extract_source_location:
         args.add("--extract-source-location")
+    for flag, values in [
+        ("--additional-component-names", additional_component_names),
+        ("--additional-function-names", additional_function_names),
+        ("--ignore", ignore),
+    ]:
+        for value in values:
+            args.add(flag, value)
 
-    for component in ctx.attr.additional_component_names:
-        args.add("--additional-component-names", component)
-
-    for function in ctx.attr.additional_function_names:
-        args.add("--additional-function-names", function)
-
-    for pattern in ctx.attr.ignore:
-        args.add("--ignore", pattern)
-
-    if ctx.attr.throws:
+    if throws:
         args.add("--throws")
-
-    if ctx.attr.pragma:
-        args.add("--pragma", ctx.attr.pragma)
-
-    if ctx.attr.preserve_whitespace:
+    if pragma:
+        args.add("--pragma", pragma)
+    if preserve_whitespace:
         args.add("--preserve-whitespace")
-
-    if ctx.attr.flatten:
+    if flatten:
         args.add("--flatten")
 
-    # Keep source lists below Windows command-line limits.
     sources = ctx.actions.args()
-    sources.add_all(ctx.files.srcs)
+    sources.add_all(srcs)
     sources.set_param_file_format("multiline")
     sources.use_param_file("--in-file=%s", use_always = True)
-
-    # Run formatjs extract (v0.1.1+ sorts keys by default)
     ctx.actions.run(
-        executable = formatjs_cli_info.cli,
+        executable = ctx.toolchains[_FORMATJS_TOOLCHAIN_TYPE].formatjs_cli_info.cli,
         arguments = [args, sources],
-        inputs = depset(ctx.files.srcs),
-        outputs = [out_file],
+        inputs = depset(srcs),
+        outputs = [out],
         mnemonic = "FormatjsExtract",
         progress_message = "Extracting messages from %{label}",
-        env = {
-            "BAZEL_BINDIR": ".",
-        },
+        env = {"BAZEL_BINDIR": "."},
+    )
+    return FormatjsExtractInfo(
+        messages = out,
+        srcs = depset(srcs),
+        id_interpolation_pattern = id_interpolation_pattern,
     )
 
+def _formatjs_extract_impl(ctx):
+    out = ctx.outputs.out or ctx.actions.declare_file(ctx.label.name + ".json")
+    info = formatjs_extract_action(
+        ctx,
+        ctx.files.srcs,
+        out,
+        format = ctx.attr.format,
+        id_interpolation_pattern = ctx.attr.id_interpolation_pattern,
+        extract_source_location = ctx.attr.extract_source_location,
+        additional_component_names = ctx.attr.additional_component_names,
+        additional_function_names = ctx.attr.additional_function_names,
+        ignore = ctx.attr.ignore,
+        throws = ctx.attr.throws,
+        pragma = ctx.attr.pragma,
+        preserve_whitespace = ctx.attr.preserve_whitespace,
+        flatten = ctx.attr.flatten,
+    )
     return [
-        DefaultInfo(
-            files = depset([out_file]),
-            # Make the output file available for direct reference
-            runfiles = ctx.runfiles(files = [out_file]),
-        ),
-        FormatjsExtractInfo(
-            messages = out_file,
-            srcs = depset(ctx.files.srcs),
-            id_interpolation_pattern = ctx.attr.id_interpolation_pattern,
-        ),
-        OutputGroupInfo(
-            json = depset([out_file]),
-        ),
+        DefaultInfo(files = depset([out]), runfiles = ctx.runfiles(files = [out])),
+        info,
+        OutputGroupInfo(json = depset([out])),
     ]
 
 formatjs_extract = rule(

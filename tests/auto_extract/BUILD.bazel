@@ -1,0 +1,201 @@
+load("@jq.bzl", "jq")
+load("@jq.bzl//jq:jq.bzl", "jq_test")
+load("//formatjs:defs.bzl", "formatjs_extract")
+load(":fixtures.bzl", "adapter_catalogs", "catalogs", "custom_action", "custom_catalogs", "graph", "metadata", "report", "runtime", "scoped_catalogs")
+
+exports_files(
+    ["foreign.py"],
+    visibility = ["//visibility:public"],
+)
+
+runtime(name = "runtime")
+
+runtime(
+    name = "runtime_with_sources",
+    srcs = ["foreign.py"],
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "runtime_alias",
+    actual = ":runtime",
+)
+
+graph(
+    name = "leaf",
+    srcs = select({"//conditions:default": ["leaf.py"]}),
+    deps = select({"//conditions:default": [":runtime_alias"]}),
+)
+
+alias(
+    name = "leaf_alias",
+    actual = ":leaf",
+)
+
+graph(
+    name = "bridge",
+    deps = [":leaf_alias"],
+)
+
+formatjs_extract(
+    name = "legacy",
+    srcs = ["legacy.tsx"],
+    extract_source_location = True,
+)
+
+metadata(
+    name = "legacy_sources",
+    srcs = ["legacy.tsx"],
+    extraction = ":legacy",
+)
+
+graph(
+    name = "root",
+    srcs = [
+        "root.rs",
+        ":legacy_sources",
+    ],
+    deps = [
+        ":bridge",
+        ":leaf",
+    ],
+)
+
+catalogs(
+    name = "root_catalogs",
+    target = ":root",
+)
+
+jq(
+    name = "merged",
+    srcs = [":root_catalogs"],
+    args = ["--slurp"],
+    filter = "add | [.[] | (.defaultMessage // .message)] | sort",
+)
+
+jq_test(
+    name = "messages_test",
+    file1 = ":merged",
+    file2 = "messages.json",
+)
+
+report(
+    name = "root_report",
+    target = ":root",
+)
+
+jq_test(
+    name = "collection_test",
+    file1 = ":root_report",
+    file2 = "report.json",
+)
+
+graph(
+    name = "plain",
+    srcs = ["leaf.py"],
+)
+
+report(
+    name = "plain_report",
+    target = ":plain",
+)
+
+jq_test(
+    name = "no_runtime_test",
+    file1 = ":plain_report",
+    file2 = "empty.json",
+)
+
+graph(
+    name = "unsupported",
+    srcs = ["ignored.txt"],
+    deps = [":runtime"],
+)
+
+report(
+    name = "unsupported_report",
+    target = ":unsupported",
+)
+
+jq_test(
+    name = "unsupported_extension_test",
+    file1 = ":unsupported_report",
+    file2 = "unsupported.json",
+)
+
+graph(
+    name = "adapter_runtime",
+    runtime = True,
+)
+
+graph(
+    name = "adapter_source",
+    srcs = ["leaf.py"],
+    deps = [":adapter_runtime"],
+)
+
+adapter_catalogs(
+    name = "adapter_output",
+    target = ":adapter_source",
+)
+
+jq_test(
+    name = "runtime_adapter_test",
+    file1 = ":adapter_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+graph(
+    name = "custom_attributes",
+    runtime_dep = ":runtime_alias",
+    source = "leaf.py",
+)
+
+custom_catalogs(
+    name = "custom_output",
+    target = ":custom_attributes",
+)
+
+jq_test(
+    name = "custom_attributes_test",
+    file1 = ":custom_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
+
+custom_action(
+    name = "action_output",
+    srcs = ["root.rs"],
+)
+
+formatjs_extract(
+    name = "rule_output",
+    srcs = ["root.rs"],
+    extract_source_location = True,
+    id_interpolation_pattern = "[sha512:contenthash:base64:10]",
+)
+
+jq_test(
+    name = "action_rule_parity_test",
+    file1 = ":action_output",
+    file2 = ":rule_output",
+)
+
+graph(
+    name = "skipped",
+    srcs = ["root.rs"],
+    deps = [":leaf"],
+)
+
+scoped_catalogs(
+    name = "scoped_output",
+    target = ":skipped",
+)
+
+jq_test(
+    name = "custom_scope_test",
+    file1 = ":scoped_output",
+    file2 = "python.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)
