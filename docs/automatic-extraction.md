@@ -25,7 +25,8 @@ rust_messages = formatjs_message_collector_aspect(
 )
 ```
 
-Use `Label(...)` in the calling module so repository mappings resolve there.
+Runtime labels must be `Label` objects, not strings. Use `Label(...)` in the
+calling module so repository mappings resolve there.
 Alternatively, `is_runtime(target, ctx)` can recognize a crate or wheel by its
 native provider without relying on a particular target label. Either match enables
 extraction; detection propagates through configured dependencies.
@@ -66,10 +67,25 @@ source_catalogs = rule(
 ```
 
 `FormatjsMessagesInfo.uses_runtime` carries the detection result;
-`FormatjsMessagesInfo.srcs` identifies sources already represented on source
-edges. Shared catalogs are deduplicated in the depset. Existing
+`FormatjsMessagesInfo.covered_srcs` identifies sources already represented by
+explicit extraction metadata. Shared catalogs are deduplicated in the depset. Existing
 `FormatjsExtractInfo` catalogs are collected, and their sources are reused rather
-than extracted again. Newly extracted targets also expose `FormatjsExtractInfo`.
+than extracted again. Partial metadata excludes only its declared sources;
+uncovered files are still extracted. Targets without explicit metadata also expose
+`FormatjsExtractInfo` for the automatic catalog.
+
+The aspect carries candidate source depsets by declaring repository and explicit
+catalogs through the graph. Each requested root exposes one automatic catalog plus
+its explicit catalogs. Parent outputs do not depend on children's automatic
+catalogs, so requesting one root runs one automatic extraction. Source lists and
+coverage subtraction are materialized at execution, without flattening transitive
+coverage during analysis. An empty filtered list produces an empty catalog.
+
+Automatic extraction uses the FormatJS CLI, jq and bazel_lib's `spawn_binary`
+toolchains. Filtering runs pinned native executables; no host shell or Python is
+used. Collection-only mode requires none of these toolchains. Source artifacts are
+declared conservatively as action inputs, including files later excluded by scope,
+extension or explicit metadata.
 
 Use one configured aspect for each collection pass. For mixed-language graphs,
 combine runtime recognition and source extensions in that aspect. Give each

@@ -1,7 +1,7 @@
 load("@jq.bzl", "jq")
 load("@jq.bzl//jq:jq.bzl", "jq_test")
 load("//formatjs:defs.bzl", "formatjs_extract")
-load(":fixtures.bzl", "adapter_catalogs", "catalogs", "collection_only_catalogs", "custom_action", "custom_catalogs", "graph", "metadata", "report", "runtime", "scoped_catalogs", "unmatched_report")
+load(":fixtures.bzl", "adapter_catalogs", "catalogs", "collection_only_catalogs", "custom_action", "custom_catalogs", "graph", "metadata", "report", "runtime", "scoped_catalogs", "source_chain", "unmatched_report")
 
 exports_files(
     ["foreign.py"],
@@ -220,4 +220,62 @@ jq_test(
     name = "unmatched_runtime_test",
     file1 = ":unmatched_output",
     file2 = "empty.json",
+)
+
+metadata(
+    name = "partial_metadata",
+    srcs = [
+        "leaf.py",
+        "legacy.tsx",
+    ],
+    extraction = ":legacy",
+    deps = [":runtime"],
+)
+
+catalogs(
+    name = "partial_catalogs",
+    target = ":partial_metadata",
+)
+
+jq(
+    name = "partial_merged",
+    srcs = [":partial_catalogs"],
+    args = ["--slurp"],
+    filter = "add | [.[] | (.defaultMessage // .message)] | sort",
+)
+
+jq_test(
+    name = "partial_metadata_test",
+    file1 = ":partial_merged",
+    file2 = "partial.json",
+)
+
+source_chain(
+    name = "chain",
+    count = 100,
+)
+
+jq_test(
+    name = "source_chain_messages_test",
+    file1 = ":chain_catalogs",
+    file2 = "chain_count.json",
+    filter1 = "length",
+)
+
+jq_test(
+    name = "source_chain_catalog_test",
+    file1 = ":chain_report",
+    file2 = "chain_catalog_count.json",
+    filter1 = ".catalogs | length",
+)
+
+catalogs(
+    name = "unsupported_catalogs",
+    target = ":unsupported",
+)
+
+jq_test(
+    name = "empty_filtered_catalog_test",
+    file1 = ":unsupported_catalogs",
+    file2 = "empty_catalog.json",
 )

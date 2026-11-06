@@ -3,7 +3,7 @@
 load("//formatjs:defs.bzl", "FormatjsExtractInfo", "FormatjsMessagesInfo", "FormatjsRuntimeInfo", "formatjs_extract_action", "formatjs_message_collector_aspect")
 
 def _graph_impl(ctx):
-    return [DefaultInfo(files = depset(ctx.files.srcs))]
+    return [DefaultInfo(files = depset(transitive = [source[DefaultInfo].files for source in ctx.attr.srcs]))]
 
 graph = rule(
     implementation = _graph_impl,
@@ -35,6 +35,7 @@ metadata = rule(
     attrs = {
         "srcs": attr.label_list(allow_files = True),
         "extraction": attr.label(providers = [FormatjsExtractInfo]),
+        "deps": attr.label_list(),
     },
 )
 
@@ -56,7 +57,7 @@ def _report_impl(ctx):
     output = ctx.actions.declare_file(ctx.label.name + ".json")
     ctx.actions.write(output, json.encode({
         "catalogs": sorted([file.basename for file in info.catalogs.to_list()]),
-        "sources": sorted([file.basename for file in info.srcs.to_list()]),
+        "sources": sorted([file.basename for file in info.covered_srcs.to_list()]),
         "uses_runtime": info.uses_runtime,
     }))
     return [DefaultInfo(files = depset([output]))]
@@ -144,3 +145,21 @@ unmatched_report = rule(
     implementation = _report_impl,
     attrs = {"target": attr.label(aspects = [unmatched_aspect])},
 )
+
+def _python_source_impl(ctx):
+    output = ctx.actions.declare_file(ctx.label.name + ".py")
+    ctx.actions.write(output, "from py_intl import define_message\nmessage = define_message(default_message=%s)\n" % json.encode(ctx.label.name))
+    return [DefaultInfo(files = depset([output]))]
+
+python_source = rule(implementation = _python_source_impl)
+
+def source_chain(name, count):
+    for index in range(count):
+        python_source(name = name + "_source_" + str(index))
+        graph(
+            name = name + "_" + str(index),
+            srcs = [":" + name + "_source_" + str(index)] + ([":" + name + "_" + str(index - 1)] if index else []),
+            deps = [] if index else [":runtime"],
+        )
+    catalogs(name = name + "_catalogs", target = ":" + name + "_" + str(count - 1))
+    report(name = name + "_report", target = ":" + name + "_" + str(count - 1))

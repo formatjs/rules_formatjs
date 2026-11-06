@@ -1,5 +1,5 @@
 {
-  "catalogs": ["leaf_messages.json", "legacy.json", "root_messages.json"],
-  "sources": ["legacy.tsx", "root.rs"],
+  "catalogs": ["legacy.json", "root_messages.json"],
+  "sources": ["legacy.tsx"],
   "uses_runtime": true
 }

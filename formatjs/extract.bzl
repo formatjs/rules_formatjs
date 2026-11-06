@@ -45,12 +45,13 @@ def formatjs_extract_action(
         throws = True,
         pragma = "",
         preserve_whitespace = False,
-        flatten = False):
+        flatten = False,
+        source_list = None):
     """Registers extraction for a rule or aspect and returns its metadata.
 
     Args:
         ctx: Rule or aspect context with the FormatJS CLI toolchain.
-        srcs: List of source Files.
+        srcs: List or depset of source Files.
         out: Caller-declared output File.
         format: CLI output formatter.
         id_interpolation_pattern: Generated message ID pattern.
@@ -62,6 +63,7 @@ def formatjs_extract_action(
         pragma: Metadata pragma.
         preserve_whitespace: Preserve message whitespace.
         flatten: Hoist selectors.
+        source_list: Optional prefiltered newline-delimited source list File.
 
     Returns:
         FormatjsExtractInfo for the registered action.
@@ -94,14 +96,15 @@ def formatjs_extract_action(
     if flatten:
         args.add("--flatten")
 
+    source_files = srcs if type(srcs) == "depset" else depset(srcs)
     sources = ctx.actions.args()
-    sources.add_all(srcs)
+    sources.add_all(source_files)
     sources.set_param_file_format("multiline")
     sources.use_param_file("--in-file=%s", use_always = True)
     ctx.actions.run(
         executable = ctx.toolchains[_FORMATJS_TOOLCHAIN_TYPE].formatjs_cli_info.cli,
-        arguments = [args, sources],
-        inputs = depset(srcs),
+        arguments = [args, "--in-file=" + source_list.path] if source_list else [args, sources],
+        inputs = depset([source_list] if source_list else [], transitive = [source_files]),
         outputs = [out],
         mnemonic = "FormatjsExtract",
         progress_message = "Extracting messages from %{label}",
@@ -109,7 +112,7 @@ def formatjs_extract_action(
     )
     return FormatjsExtractInfo(
         messages = out,
-        srcs = depset(srcs),
+        srcs = source_files,
         id_interpolation_pattern = id_interpolation_pattern,
     )
 

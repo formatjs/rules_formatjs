@@ -1,1 +1,5 @@
-{ "catalogs": [], "sources": [], "uses_runtime": true }
+{
+  "catalogs": ["unsupported_messages.json"],
+  "sources": [],
+  "uses_runtime": true
+}
