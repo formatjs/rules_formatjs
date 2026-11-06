@@ -1,0 +1,41 @@
+load("@jq.bzl//jq:jq.bzl", "jq_test")
+load(":fixtures.bzl", "catalogs", "generate", "graph", "wrapper")
+
+config_setting(
+    name = "off",
+    values = {"compilation_mode": "dbg"},
+)
+
+generate(
+    name = "source",
+    srcs = ["input.py"],
+    scope_allow = select({
+        ":off": False,
+        "//conditions:default": True,
+    }),
+)
+
+wrapper(
+    name = "off_wrapper",
+    srcs = [":source"],
+)
+
+graph(
+    name = "root",
+    srcs = [
+        ":off_wrapper",
+        ":source",
+    ],
+)
+
+catalogs(
+    name = "output",
+    target = ":root",
+)
+
+jq_test(
+    name = "configured_scope_test",
+    file1 = ":output",
+    file2 = "expected.json",
+    filter1 = "[.[] | (.defaultMessage // .message)]",
+)

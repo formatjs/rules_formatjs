@@ -78,7 +78,6 @@ def _report_impl(ctx):
     output = ctx.actions.declare_file(ctx.label.name + ".json")
     ctx.actions.write(output, json.encode({
         "catalog_count": len(info.catalogs.to_list()),
-        "sources": sorted([file.basename for file in info.covered_srcs.to_list()]),
         "uses_runtime": info.uses_runtime,
     }))
     return [DefaultInfo(files = depset([output]))]

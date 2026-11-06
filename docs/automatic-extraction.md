@@ -79,10 +79,9 @@ source_catalogs = rule(
 )
 ```
 
-At intermediate nodes, `catalogs` contains only explicit catalogs. The provider also
-exposes `uses_runtime`, `covered_srcs`, `explicit_catalogs`, and source depsets grouped
-by declaring repository. A predicate that always returns false gives metadata-only
-propagation for adapters that materialize catalogs themselves.
+The public provider has two fields: `catalogs` and `uses_runtime`. At intermediate
+nodes, `catalogs` contains only explicit catalogs. A private provider carries source
+plans and explicit coverage; consumers do not depend on that internal state.
 
 ## Catalogs and execution
 
@@ -116,9 +115,11 @@ External dependencies can enable extraction and provide explicit catalogs withou
 having their implementation scanned. Override `should_extract(target, ctx)` to
 change that target boundary. Rejected sources stay excluded when ancestors forward
 them through source wrappers. Independent allowed declarations of the same source
-remain eligible. These scope decisions stay in depsets until the extraction root.
-Only files owned by a contributing target's repository
-are eligible, including when source labels point into another repository.
+remain eligible. Source plans retain configured identity, so allowing a generator
+in one configuration cannot enable its rejected output in another. Plans stay in
+depsets until the extraction root; each configured node is visited once there.
+Only files owned by a contributing target's repository are eligible, including
+when source labels point into another repository.
 
 `source_extensions` defaults to `ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `rs`, and `py`.
 `dependency_attributes` controls detection/collection edges; `source_attributes`

@@ -12,15 +12,10 @@ FormatjsMessagesInfo = provider(
     fields = {
         "catalogs": "Depset of original catalogs; no intermediate merges.",
         "uses_runtime": "Whether a configured dependency enables extraction.",
-        "covered_srcs": "Depset of source files represented by explicit extraction metadata.",
-        "explicit_catalogs": "Original explicit catalogs, excluding this aspect's extraction actions.",
-        "sources_by_repository": "Candidate source depsets grouped by declaring repository.",
-        "scope_excluded_srcs": "Files rejected by source scope, including forwarded outputs.",
-        "scope_direct_srcs": "Direct source files explicitly allowed by an opted-in target.",
-        "scope_allowed_owners": "Allowed source targets explicitly referenced by an opted-in target.",
-        "allows_sources": "Whether this target passes the source-scope predicate.",
     },
 )
+
+_SourcePlansInfo = provider(fields = ["catalogs", "covered", "plan", "plans"])
 
 def _main_repository(_target, ctx):
     return ctx.label.repo_name == ""
@@ -35,19 +30,38 @@ def _targets(ctx, attributes):
 def _source_path(source):
     return source.path
 
-def _extract_catalogs(ctx, name, sources_by_repository, covered, scope_excluded, scope_direct, scope_owners, extensions, options):
+def _source_files(plans, covered, extensions):
+    requested = {}
+    candidates = {}
+    direct = []
+    owners = {}
+
+    # Parents request source views before their children are visited. Each
+    # configured node is visited once, even through shared source wrappers.
+    for plan in plans.to_list()[::-1]:
+        if not plan.allowed or not (plan.enabled or plan.key in requested):
+            continue
+        if plan.key in requested:
+            owners[plan.key] = True
+        for source in plan.sources:
+            if plan.enabled:
+                candidates.setdefault(plan.key[0].repo_name, []).append(source.files)
+            if source.key == None:
+                direct.append(source.files)
+            else:
+                requested[source.key] = True
+    eligible = {source: True for source in depset(transitive = direct).to_list()}
     excluded = {source: True for source in covered.to_list()}
-    rejected = {source: True for source in scope_excluded.to_list()}
-    direct = {source: True for source in scope_direct.to_list()}
-    owners = {owner: True for owner in scope_owners.to_list()}
-    sources = [
+    return [
         source
-        for repository, candidates in sources_by_repository.items()
-        for source in candidates.to_list()
+        for repository, inputs in candidates.items()
+        for source in depset(transitive = inputs).to_list()
         if source.extension in extensions and source.owner.repo_name == repository and source not in excluded and (
-            source not in rejected or source in direct or source.owner in owners
+            source in eligible or (source.owner, source.root.path) in owners
         )
     ]
+
+def _extract_catalogs(ctx, name, sources, options):
     if not sources:
         return []
     if not options.get("extract_source_location", False):
@@ -116,66 +130,47 @@ def formatjs_message_collector_aspect(
     attributes = depset(dependency_attributes + source_attributes).to_list()
 
     def _impl(target, ctx):
-        dependencies = [
-            dependency[FormatjsMessagesInfo]
-            for dependency in _targets(ctx, attributes)
-            if FormatjsMessagesInfo in dependency
-        ]
+        dependencies = _targets(ctx, attributes)
+        inherited = [dependency[_SourcePlansInfo] for dependency in dependencies if _SourcePlansInfo in dependency]
         runtime_targets = {runtime.label: True for runtime in ctx.attr._formatjs_runtime_targets}
         uses_runtime = (
             target.label in runtime_targets or
             ctx.label in runtime_targets or
             (is_runtime != None and is_runtime(target, ctx)) or
-            any([dependency.uses_runtime for dependency in dependencies])
+            any([dependency[FormatjsMessagesInfo].uses_runtime for dependency in dependencies if FormatjsMessagesInfo in dependency])
         )
         explicit_catalogs = depset(
             [target[FormatjsExtractInfo].messages] if FormatjsExtractInfo in target else [],
-            transitive = [dependency.explicit_catalogs for dependency in dependencies],
+            transitive = [dependency.catalogs for dependency in inherited],
         )
-        covered_inputs = [dependency.covered_srcs for dependency in dependencies]
-        if FormatjsExtractInfo in target:
-            covered_inputs.append(getattr(target[FormatjsExtractInfo], "srcs", depset()))
-        covered = depset(transitive = covered_inputs)
-        groups = {}
-        for dependency in dependencies:
-            for repository, sources in dependency.sources_by_repository.items():
-                groups.setdefault(repository, []).append(sources)
-        source_targets = _targets(ctx, source_attributes)
-        allowed = extraction_enabled and should_extract(target, ctx)
-        rejected = []
-        direct = []
-        if extraction_enabled and not allowed:
-            rejected = [dependency[DefaultInfo].files for dependency in source_targets if DefaultInfo in dependency]
-            if DefaultInfo in target:
-                rejected.append(target[DefaultInfo].files)
-        if uses_runtime and allowed:
-            groups.setdefault(ctx.label.repo_name, []).extend([
-                dependency[DefaultInfo].files
-                for dependency in source_targets
-                if DefaultInfo in dependency
-            ])
-            direct = [
-                dependency[DefaultInfo].files
-                for dependency in source_targets
-                if DefaultInfo in dependency and FormatjsMessagesInfo not in dependency
-            ]
+        covered = depset(
+            transitive = [dependency.covered for dependency in inherited] + (
+                [getattr(target[FormatjsExtractInfo], "srcs", depset())] if FormatjsExtractInfo in target else []
+            ),
+        )
+        plan = None
+        if extraction_enabled:
+            allowed = should_extract(target, ctx)
 
-        # Ancestors can forward rejected files through DefaultInfo. Keep scope
-        # decisions lazy, while preserving independent allowed declarations.
-        scope_excluded = depset(transitive = rejected + [dependency.scope_excluded_srcs for dependency in dependencies])
-        scope_direct = depset(transitive = direct + [dependency.scope_direct_srcs for dependency in dependencies])
-        scope_owners = depset(
-            [
-                dependency.label
-                for dependency in source_targets
-                if FormatjsMessagesInfo in dependency and dependency[FormatjsMessagesInfo].allows_sources
-            ] if uses_runtime and allowed else [],
-            transitive = [dependency.scope_allowed_owners for dependency in dependencies],
+            # Labels alone conflate generators reached through transitions.
+            plan = struct(
+                key = (target.label, ctx.bin_dir.path),
+                allowed = allowed,
+                enabled = allowed and uses_runtime,
+                sources = tuple([
+                    struct(
+                        key = dependency[_SourcePlansInfo].plan.key if _SourcePlansInfo in dependency else None,
+                        files = dependency[DefaultInfo].files,
+                    )
+                    for dependency in _targets(ctx, source_attributes)
+                    if DefaultInfo in dependency
+                ]),
+            )
+        plans = depset(
+            [plan] if plan != None else [],
+            transitive = [dependency.plans for dependency in inherited],
+            order = "postorder",
         )
-        sources_by_repository = {
-            repository: depset(transitive = sources)
-            for repository, sources in groups.items()
-        }
         catalogs = explicit_catalogs
         if extraction_enabled:
             if collect_at != None:
@@ -188,26 +183,15 @@ def formatjs_message_collector_aspect(
                 catalogs = depset(_extract_catalogs(
                     ctx,
                     name,
-                    sources_by_repository,
-                    covered,
-                    scope_excluded,
-                    scope_direct,
-                    scope_owners,
-                    source_extensions,
+                    _source_files(plans, covered, source_extensions),
                     extraction_options,
                 ), transitive = [explicit_catalogs])
         return [
             FormatjsMessagesInfo(
                 catalogs = catalogs,
                 uses_runtime = uses_runtime,
-                covered_srcs = covered,
-                explicit_catalogs = explicit_catalogs,
-                sources_by_repository = sources_by_repository,
-                scope_excluded_srcs = scope_excluded,
-                scope_direct_srcs = scope_direct,
-                scope_allowed_owners = scope_owners,
-                allows_sources = allowed,
             ),
+            _SourcePlansInfo(catalogs = explicit_catalogs, covered = covered, plan = plan, plans = plans),
             OutputGroupInfo(all_messages = catalogs),
         ]
 

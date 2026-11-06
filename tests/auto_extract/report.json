@@ -1,5 +1,4 @@
 {
   "catalog_count": 3,
-  "sources": ["legacy.tsx"],
   "uses_runtime": true
 }
