@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.13.0 (2026-11-06)
+
+## What's Changed
+* chore(deps): update bazel-contrib/publish-to-bcr action to v1.6.0 by @renovate[bot] in https://github.com/formatjs/rules_formatjs/pull/126
+* feat: extract messages from runtime dependency graphs by @longlho in https://github.com/formatjs/rules_formatjs/pull/129
+
+
+**Full Changelog**: https://github.com/formatjs/rules_formatjs/compare/v0.12.5...v0.13.0
+
 ## 0.12.5 (2026-11-01)
 
 ## What's Changed
