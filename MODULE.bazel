@@ -31,12 +31,12 @@ module(
 )
 
 # Core dependencies required by rules_formatjs
-bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "jq.bzl", version = "0.7.1")  # JSON manipulation in aggregation aspect
 bazel_dep(name = "package_metadata", version = "0.0.13")  # Package metadata for BCR
 bazel_dep(name = "platforms", version = "1.1.0")
 
 # Development dependencies
+bazel_dep(name = "bazel_lib", version = "3.7.2", dev_dependency = True)
 bazel_dep(name = "bazelrc-preset.bzl", version = "1.10.0", dev_dependency = True)
 bazel_dep(name = "buildifier_prebuilt", version = "10.1.0", dev_dependency = True)
 bazel_dep(name = "gazelle", version = "0.54.0", dev_dependency = True, repo_name = "bazel_gazelle")
